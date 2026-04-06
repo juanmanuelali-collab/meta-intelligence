@@ -1,0 +1,28 @@
+{
+  "name": "ROS",
+  "slug": "ros",
+  "password": "ros2025",
+  "ad_account_id": "act_4423260797906861",
+  "access_token": "REEMPLAZAR_CON_TOKEN_REAL",
+  "email_alerts": ["tu@email.com"],
+  "report_hour": 8,
+  "timezone": "America/Argentina/Buenos_Aires",
+  "currency": "ARS",
+  "objectives": {
+    "roas_min": 3.0,
+    "cpa_max": 5000,
+    "cpm_max": 1000,
+    "ctr_min": 1.0,
+    "frecuencia_max": 4.0,
+    "budget_daily": 10000
+  },
+  "alert_thresholds": {
+    "cpa_increase_pct": 20,
+    "roas_decrease_pct": 15,
+    "ctr_decrease_pct": 25,
+    "frecuencia_alert": 3.5
+  },
+  "colorPrimary": "#c8f135",
+  "colorAccent": "#a3c72c",
+  "colorBtnText": "#0b0b0d"
+}
