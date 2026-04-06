@@ -1,0 +1,28 @@
+{
+  "name": "blotting",
+  "slug": "blotting",
+  "password": "Cordoba2026",
+  "ad_account_id": "act_4423260797906861",
+  "access_token": "EAANp4UiZAXZCQBRCA37aK2rjUQfr9FHdqsu9QJddcXBlC7nKPQmBWjHBiWJdpNBypWdo5kpMoUL3q2kndl6ywjlEhu80brLGjsTh396ZBiZAA3I43NnXo07ZCJeOUkGNrrVV5WVZCmNcfjZCWhEV0wNcp2gZAB0YtqKRYUAHRJGUckxkoYfuLHVhvD51mFJqagZDZD",
+  "email_alerts": ["juanmanuelali@gmail.com"],
+  "report_hour": 8,
+  "timezone": "America/Argentina/Buenos_Aires",
+  "currency": "ARS",
+  "objectives": {
+    "roas_min": 3.0,
+    "cpa_max": 2500,
+    "cpm_max": 800,
+    "ctr_min": 1.5,
+    "frecuencia_max": 4.0,
+    "budget_daily": 5000
+  },
+  "alert_thresholds": {
+    "cpa_increase_pct": 20,
+    "roas_decrease_pct": 15,
+    "ctr_decrease_pct": 25,
+    "frecuencia_alert": 3.5
+  },
+  "colorPrimary": "#e8461e",
+  "colorAccent": "#c93d18",
+  "colorBtnText": "#ffffff"
+}
