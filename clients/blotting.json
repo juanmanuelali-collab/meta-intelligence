@@ -9,7 +9,7 @@
   "timezone": "America/Argentina/Buenos_Aires",
   "currency": "ARS",
   "objectives": {},
-  "colorPrimary": "#c8f135",
-  "colorAccent": "#a3c72c",
-  "colorBtnText": "#0b0b0d"
+  "colorPrimary": "#e8461e",
+  "colorAccent": "#c93d18",
+  "colorBtnText": "#ffffff"
 }
