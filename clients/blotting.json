@@ -1,0 +1,15 @@
+{
+  "name": "blotting",
+  "slug": "blotting",
+  "password": "Cordoba2026",
+  "ad_account_id": "act_4423260797906861",
+  "access_token": "EAANp4UiZAXZCQBRDsWYPVBWzCSsDF3fwZARXzos96HUg7ZAlZAClL7f1q68DeyZBUOR7YJbyPOZA4MBTkjieF2LEHSQD4ZCh4oDpoU6wlLZCgPvLdJhmXmvW4RdtHCZAhS41oWPGKOykR7WnhCyutKRHZCUElPU8xqmZAgxiPoMQiHSFrzIuwDt3nJAhAxk9fTf8OTjl8ZBoS0e5emao7hZAqURwRvuAjd9PuzShWMVYgimxbZCYbivJIZAFp4W5wdkQE1txw6vC5dtkfS1PlMBZCqNor6mkZD",
+  "email_alerts": ["juanmanuelali@gmail.com", "hola@doctanexus.com"],
+  "report_hour": 8,
+  "timezone": "America/Argentina/Buenos_Aires",
+  "currency": "ARS",
+  "objectives": {},
+  "colorPrimary": "#c8f135",
+  "colorAccent": "#a3c72c",
+  "colorBtnText": "#0b0b0d"
+}
