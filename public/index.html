@@ -1,0 +1,3256 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Meta Intelligence — Docta Nexus</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230b0b0d'/%3E%3Ctext x='50%25' y='50%25' font-size='20' text-anchor='middle' dominant-baseline='central' font-family='serif' font-weight='bold' fill='%23c8f135'%3ED%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f1f5f9;--s1:#ffffff;--s2:#f8fafc;--s3:#f1f5f9;
+  --border:#252529;--border2:#35353e;
+  --text:#0f172a;--muted:#7a7a88;--muted2:#94a3b8;
+  --brand:#4f46e5;--brand2:#a3c72c;
+  --brand-dim:rgba(200,241,53,.07);--brand-dim2:rgba(200,241,53,.15);
+  --brand-btn-text:#0b0b0d;
+  --purple:#a78cf4;--teal:#3ecfaa;
+  --danger:#dc2626;--success:#059669;--amber:#d97706;
+  --r:10px;--rlg:16px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;font-size:15px;min-height:100vh}
+#loginScreen{position:fixed;inset:0;background:var(--bg);z-index:200;display:flex;align-items:center;justify-content:center;padding:1.5rem}
+.login-box{background:var(--s1);border:1px solid var(--border);border-radius:var(--rlg);padding:2.5rem;width:100%;max-width:400px}
+.login-logo{display:flex;align-items:center;gap:10px;margin-bottom:2rem;justify-content:center}
+.login-logo-mark{width:40px;height:40px;background:var(--brand);border-radius:10px;display:flex;align-items:center;justify-content:center;font-family:'DM Serif Display',serif;font-size:22px;font-weight:700;color:#0b0b0d}
+.login-logo-text{font-family:'DM Serif Display',serif;font-size:1.3rem}
+.login-logo-text span{color:var(--brand)}
+.login-title{font-family:'DM Serif Display',serif;font-size:1.5rem;text-align:center;margin-bottom:.3rem}
+.login-sub{color:var(--muted);font-size:13px;text-align:center;margin-bottom:1.8rem}
+.lfield{margin-bottom:1rem}
+.llabel{display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:6px}
+.linput{width:100%;background:var(--s2);border:1px solid var(--border);border-radius:var(--r);color:var(--text);font-family:'DM Sans',sans-serif;font-size:15px;padding:11px 14px;outline:none;transition:border-color .2s}
+.linput:focus{border-color:var(--brand)}
+.lbtn{width:100%;background:var(--brand);color:var(--brand-btn-text);border:none;border-radius:var(--r);font-family:'DM Sans',sans-serif;font-size:15px;font-weight:700;padding:13px;cursor:pointer;margin-top:.5rem;transition:all .2s}
+.lbtn:hover{background:var(--brand2)}
+.lerr{color:var(--danger);font-size:13px;text-align:center;margin-top:.75rem;display:none}
+#appScreen{display:none}
+.hdr{display:flex;align-items:center;justify-content:space-between;padding:.9rem 2rem;border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100;background:rgba(11,11,13,.96);backdrop-filter:blur(14px)}
+.hdr-brand{display:flex;flex-direction:column;gap:1px}
+.cname{font-family:'DM Serif Display',serif;font-size:1.25rem;line-height:1.2}
+.cname .sep{font-style:italic;color:var(--muted2);font-size:.95rem;margin-left:5px}
+.by-docta{font-size:11px;color:var(--muted)}
+.by-docta a{color:var(--brand);text-decoration:none;font-weight:500}
+.hdr-actions{display:flex;gap:8px;align-items:center}
+.run-btn{padding:8px 16px;background:var(--brand);color:var(--brand-btn-text);border:none;border-radius:var(--r);font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;cursor:pointer;transition:all .2s;display:flex;align-items:center;gap:6px}
+.run-btn:hover{background:var(--brand2)}
+.run-btn:disabled{opacity:.4;cursor:not-allowed}
+.last-upd{font-size:11px;color:var(--muted2)}
+.nav-tabs{display:flex;gap:2px;padding:0 2rem;border-bottom:1px solid var(--border);background:var(--s1)}
+.nav-tab{padding:11px 18px;font-size:13px;font-weight:500;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;transition:all .2s;background:none;border-top:none;border-left:none;border-right:none;font-family:'DM Sans',sans-serif}
+.nav-tab:hover{color:var(--text)}
+.nav-tab.on{color:var(--brand);border-bottom-color:var(--brand)}
+.panel{display:none;max-width:1200px;margin:0 auto;padding:1.5rem 1.5rem 3rem}
+.panel.on{display:block}
+.hero{margin-bottom:1.5rem}
+.hero h1{font-family:'DM Serif Display',serif;font-size:1.7rem;margin-bottom:.3rem}
+.hero h1 span{color:var(--brand)}
+.hero p{font-size:13px;color:var(--muted)}
+.period-bar{display:flex;gap:6px;align-items:center;margin-bottom:1.5rem;flex-wrap:wrap}
+.pbtn{padding:6px 14px;border-radius:20px;border:1px solid var(--border2);background:var(--s2);color:var(--muted);font-size:12px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all .15s}
+.pbtn:hover{color:var(--text)}
+.pbtn.on{background:var(--brand-dim2);border-color:var(--brand);color:var(--brand)}
+.pload{font-size:12px;color:var(--muted);display:none;align-items:center;gap:6px}
+.pload.show{display:flex}
+.card{background:var(--s1);border:1px solid var(--border2);border-radius:var(--rlg);padding:1.4rem;margin-bottom:1.2rem;box-shadow:0 2px 12px rgba(0,0,0,.4)}
+.ctitle{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.12em;color:var(--muted);margin-bottom:1rem;display:flex;align-items:center;gap:7px}
+.dot{width:5px;height:5px;border-radius:50%;background:var(--brand);flex-shrink:0}
+.dot-p{background:var(--purple)}
+.dot-t{background:var(--teal)}
+.dot-d{background:var(--danger)}
+.dot-a{background:var(--amber)}
+.dot-amber{background:var(--amber)}
+.metric-toggle-btn{padding:5px 12px;border-radius:20px;border:1px solid var(--border2);background:var(--s2);color:var(--muted);font-size:12px;font-weight:500;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all .15s}
+.metric-toggle-btn.on{background:var(--brand-dim2);border-color:var(--brand);color:var(--brand)}
+.score-row{display:grid;grid-template-columns:155px 1fr;gap:1.2rem;margin-bottom:1.2rem}
+@media(max-width:700px){.score-row{grid-template-columns:1fr}}
+.score-box{background:var(--s1);border:1px solid var(--border2);border-radius:var(--rlg);padding:1.4rem;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;box-shadow:0 2px 12px rgba(0,0,0,.4)}
+.score-num{font-family:'DM Serif Display',serif;font-size:3.2rem;line-height:1;margin-bottom:.3rem}
+.score-lbl{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:var(--muted)}
+.sg{color:var(--success)}.sw{color:var(--amber)}.sb{color:var(--danger)}
+.mg{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px}
+.mc{background:var(--s2);border:1px solid var(--border2);border-radius:var(--r);padding:11px 13px}
+.ml{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px}
+.mv{font-size:1.2rem;font-weight:700;line-height:1.2}
+.md{font-size:11px;margin-top:3px;font-weight:500}
+.du{color:var(--success)}.dd{color:var(--danger)}.dn{color:var(--muted)}
+.itabs{display:flex;gap:4px;background:var(--s2);border-radius:9px;padding:3px;margin-bottom:1rem}
+.itab{flex:1;text-align:center;padding:7px;border-radius:7px;font-size:13px;font-weight:500;cursor:pointer;color:var(--muted);transition:all .2s;border:none;background:transparent;font-family:'DM Sans',sans-serif}
+.itab.on{background:var(--s1);color:var(--text)}
+.ipanel{display:none}
+.ipanel.on{display:block}
+.abn{display:flex;gap:8px;align-items:flex-start;padding:11px 14px;border-radius:var(--r);margin-bottom:.6rem;font-size:13px;line-height:1.5}
+.abn-c{background:rgba(242,109,109,.08);border:1px solid rgba(242,109,109,.3);color:var(--danger)}
+.abn-w{background:rgba(245,166,35,.08);border:1px solid rgba(245,166,35,.3);color:var(--amber)}
+.diag{background:var(--s2);border-left:3px solid var(--purple);border-radius:var(--r);padding:1rem 1.2rem;margin-bottom:.8rem;font-size:14px;line-height:1.7}
+.diag-lbl{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:var(--purple);margin-bottom:6px}
+.diag.tl{border-left-color:var(--teal)}.diag.tl .diag-lbl{color:var(--teal)}
+.diag.am{border-left-color:var(--amber)}.diag.am .diag-lbl{color:var(--amber)}
+.crit{background:rgba(242,109,109,.06);border:1px solid rgba(242,109,109,.2);border-radius:var(--r);padding:1rem 1.2rem;margin-bottom:.6rem}
+.crit-name{font-weight:600;color:var(--danger);margin-bottom:.3rem;font-size:14px}
+.crit-issue{font-size:13px;color:var(--muted);margin-bottom:.5rem;line-height:1.5}
+.crit-action{font-size:13px;background:rgba(242,109,109,.1);border-radius:6px;padding:6px 10px;border-left:2px solid var(--danger)}
+.ai{display:flex;gap:12px;padding:12px 14px;border-radius:var(--r);background:var(--s2);margin-bottom:.6rem;align-items:flex-start;border:1px solid var(--border)}
+.an{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0;margin-top:1px}
+.ai-h .an{background:rgba(242,109,109,.15);color:var(--danger)}
+.ai-m .an{background:rgba(245,166,35,.15);color:var(--amber)}
+.ai-l .an{background:rgba(93,232,160,.15);color:var(--success)}
+.ai-badge{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;padding:2px 7px;border-radius:10px;margin-left:6px}
+.ib-a{background:rgba(242,109,109,.12);color:var(--danger)}
+.ib-m{background:rgba(245,166,35,.12);color:var(--amber)}
+.ib-b{background:rgba(93,232,160,.12);color:var(--success)}
+.ai-text{font-size:14px;font-weight:500;margin-bottom:3px}
+.ai-det{font-size:13px;color:var(--muted);line-height:1.5}
+.tw{overflow-x:auto}
+.funnel-wrap{padding:1rem 0 .5rem;overflow-x:auto}
+.funnel-campaign{margin-bottom:1.5rem;padding-bottom:1.5rem;border-bottom:1px solid var(--border)}
+.funnel-campaign:last-child{border-bottom:none;margin-bottom:0;padding-bottom:0}
+.funnel-camp-name{font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:.75rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.funnel-steps{display:flex;align-items:flex-end;gap:0;min-width:max-content}
+.funnel-step{display:flex;flex-direction:column;align-items:center;position:relative}
+.funnel-step-bar{border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:.6rem .5rem;min-width:90px;text-align:center;transition:transform .2s}
+.funnel-step-bar:hover{transform:translateY(-2px)}
+.funnel-step-label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:rgba(255,255,255,.75);margin-bottom:4px}
+.funnel-step-value{font-size:1.1rem;font-weight:800;color:#fff;line-height:1}
+.funnel-arrow{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0 6px;color:var(--muted2);align-self:center;padding-bottom:8px}
+.funnel-arrow-ico{font-size:16px;line-height:1}
+.funnel-arrow-pct{font-size:9px;margin-top:2px;white-space:nowrap;font-weight:700}
+.funnel-zero{opacity:.3}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{padding:8px 10px;text-align:left;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);border-bottom:1px solid var(--border2);white-space:nowrap}
+td{padding:9px 10px;border-bottom:1px solid var(--border);vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:rgba(255,255,255,.02)}
+.pp{padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600}
+.pp-s{background:rgba(93,232,160,.12);color:var(--success)}
+.pp-f{background:rgba(242,109,109,.12);color:var(--danger)}
+.pp-l{background:rgba(245,166,35,.12);color:var(--amber)}
+.pp-u{background:rgba(122,122,136,.12);color:var(--muted)}
+.profile-opt .profile-card{background:var(--s2);border:2px solid var(--border2);border-radius:var(--r);padding:14px;cursor:pointer;transition:all .2s;text-align:center}
+.profile-opt .profile-card:hover{border-color:var(--muted);background:var(--s3)}
+.profile-opt input:checked + .profile-card{border-color:var(--brand);background:var(--brand-dim2)}
+.profile-icon{font-size:1.8rem;margin-bottom:6px}
+.profile-name{font-weight:700;font-size:13px;margin-bottom:4px;color:var(--text)}
+.profile-desc{font-size:11px;color:var(--muted);line-height:1.5}
+.cfg-title{font-family:'DM Serif Display',serif;font-size:1.2rem;margin-bottom:.3rem}
+.cfg-sub{font-size:13px;color:var(--muted);margin-bottom:1.2rem;line-height:1.6}
+.cfg-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
+@media(max-width:600px){.cfg-grid{grid-template-columns:1fr}}
+.field{margin-bottom:.9rem}
+.flabel{display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:6px}
+.finput{width:100%;background:var(--s2);border:1px solid var(--border);border-radius:var(--r);color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;padding:10px 13px;outline:none;transition:border-color .2s}
+.finput:focus{border-color:var(--brand)}
+.sbtn{padding:10px 20px;background:var(--brand);color:var(--brand-btn-text);border:none;border-radius:var(--r);font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;cursor:pointer;transition:all .2s}
+.sbtn:hover{background:var(--brand2)}
+.sbtn-ghost{background:var(--s2);color:var(--text);border:1px solid var(--border2)}
+.sbtn-ghost:hover{background:var(--s3)}
+.sok{color:var(--success);font-size:13px;margin-left:10px;display:none}
+.trow{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border)}
+.trow:last-child{border-bottom:none}
+.tlbl{font-size:14px}.tsub{font-size:12px;color:var(--muted);margin-top:2px}
+.toggle{width:40px;height:22px;background:var(--border2);border-radius:11px;cursor:pointer;position:relative;transition:background .2s;border:none;flex-shrink:0}
+.toggle.on{background:var(--brand)}
+.toggle::after{content:'';position:absolute;width:16px;height:16px;background:#fff;border-radius:50%;top:3px;left:3px;transition:transform .2s}
+.toggle.on::after{transform:translateX(18px)}
+.app-footer{border-top:1px solid var(--border);padding:1.5rem;text-align:center;background:var(--s1);margin-top:2rem}
+.footer-inner{max-width:1200px;margin:0 auto;display:flex;flex-direction:column;align-items:center;gap:8px}
+.footer-logo{display:flex;align-items:center;gap:8px;text-decoration:none}
+.flm{width:28px;height:28px;background:var(--brand);border-radius:6px;display:flex;align-items:center;justify-content:center;font-family:'DM Serif Display',serif;font-size:15px;font-weight:700;color:#0b0b0d}
+.flt{font-family:'DM Serif Display',serif;font-size:1rem;color:var(--text)}
+.flt span{color:var(--brand)}
+.fcopy{font-size:11px;color:var(--muted2);line-height:1.7}
+.fcopy a{color:var(--muted2);text-decoration:none}
+.fcopy a:hover{color:var(--brand)}
+.spin{width:12px;height:12px;border:1.5px solid rgba(0,0,0,.3);border-top-color:var(--brand-btn-text);border-radius:50%;animation:sp .7s linear infinite;display:inline-block}
+.spin-m{border:1.5px solid var(--border2);border-top-color:var(--brand)}
+@keyframes sp{to{transform:rotate(360deg)}}
+.empty{text-align:center;padding:2.5rem 1rem;color:var(--muted);font-size:14px}
+.cfg-sep{margin-bottom:1.5rem;padding-bottom:1.5rem;border-bottom:1px solid var(--border)}
+
+/* TOOLTIP */
+.tip-wrap{position:relative;cursor:help}
+.tip-wrap:hover .tip-box{opacity:1;transform:translateY(0);pointer-events:auto}
+.tip-box{position:absolute;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%) translateY(4px);background:#1e1e22;border:1px solid var(--border2);border-radius:10px;padding:10px 13px;font-size:12px;color:var(--text);line-height:1.6;width:220px;z-index:50;opacity:0;pointer-events:none;transition:opacity .18s,transform .18s;box-shadow:0 8px 24px rgba(0,0,0,.5)}
+.tip-box::after{content:'';position:absolute;top:100%;left:50%;transform:translateX(-50%);border:5px solid transparent;border-top-color:#2c2c32}
+.tip-box strong{color:var(--brand);display:block;margin-bottom:3px;font-size:11px;text-transform:uppercase;letter-spacing:.06em}
+.tip-box.tip-left{left:0;transform:translateY(4px)}
+.tip-box.tip-left::after{left:20px}
+.tip-wrap:hover .tip-box.tip-left{transform:translateY(0)}
+.tip-wrap:hover .tip-box.tip-right{transform:translateY(0)}
+.tip-box.tip-right{left:auto;right:0;transform:translateY(4px)}
+.tip-box.tip-right::after{left:auto;right:20px}
+.mc.tip-wrap{cursor:help;transition:border-color .15s}
+.mc.tip-wrap:hover{border-color:var(--brand)}
+.score-box.tip-wrap:hover{border-color:var(--brand)}
+
+/* CREATIVIDADES */
+.cr-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:1.2rem;margin-bottom:1.5rem}
+.cr-card{background:var(--s1);border:1px solid var(--border2);border-radius:var(--rlg);overflow:hidden;transition:transform .15s,box-shadow .15s}
+.cr-card:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.5)}
+.cr-img-wrap{position:relative;width:100%;aspect-ratio:1/1;background:var(--s2);overflow:hidden}
+.cr-img-wrap img{width:100%;height:100%;object-fit:cover}
+.cr-img-placeholder{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:2.5rem;color:var(--muted2)}
+.cr-media-badge{position:absolute;top:8px;right:8px;background:rgba(0,0,0,.7);color:#fff;font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px}
+.cr-body{padding:14px}
+.cr-name{font-size:12px;font-weight:600;color:var(--text);margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cr-camp{font-size:10px;color:var(--muted);margin-bottom:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cr-metrics{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px}
+.cr-met{background:var(--s2);border:1px solid var(--border);border-radius:6px;padding:7px 8px;text-align:center}
+.cr-met-label{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:2px}
+.cr-met-val{font-size:13px;font-weight:700;color:var(--text)}
+.cr-result{background:var(--brand-dim);border:1px solid rgba(200,241,53,.2);border-radius:6px;padding:7px 10px;font-size:12px;color:var(--brand);text-align:center;margin-top:6px}
+.cr-ai-panel{background:var(--s1);border:1px solid var(--border2);border-radius:var(--rlg);padding:1.4rem;margin-bottom:1.5rem}
+.cr-ai-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem}
+@media(max-width:700px){.cr-ai-grid{grid-template-columns:1fr}}
+.cr-ai-item{background:var(--s2);border:1px solid var(--border2);border-radius:var(--r);padding:12px 14px}
+.cr-ai-item-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:6px;display:flex;align-items:center;gap:6px}
+.cr-ai-item-val{font-size:13px;color:var(--text);line-height:1.6}
+.cr-recs{display:flex;flex-direction:column;gap:6px}
+.cr-rec{display:flex;align-items:flex-start;gap:8px;font-size:13px;color:var(--text);line-height:1.6}
+.cr-rec-num{background:var(--brand-dim2);border:1px solid rgba(200,241,53,.3);color:var(--brand);font-size:10px;font-weight:800;width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px}
+.cr-period-bar{display:flex;gap:6px;margin-bottom:1.5rem;flex-wrap:wrap}
+.cr-loading{display:flex;align-items:center;justify-content:center;gap:10px;padding:3rem;color:var(--muted);font-size:14px}
+.cr-empty{text-align:center;padding:3rem;color:var(--muted);font-size:14px}
+.cr-winner{border-color:rgba(200,241,53,.4);box-shadow:0 0 0 1px rgba(200,241,53,.2)}
+.cr-winner .cr-img-wrap::after{content:'🏆 TOP';position:absolute;top:8px;left:8px;background:var(--brand);color:#0b0b0d;font-size:10px;font-weight:800;padding:2px 8px;border-radius:10px}
+
+/* ANÁLISIS DUAL */
+.dual-panel{background:var(--s1);border:1px solid var(--border2);border-radius:var(--rlg);padding:1.4rem;margin-bottom:1.5rem}
+.dual-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem}
+@media(max-width:600px){.dual-grid{grid-template-columns:1fr}}
+.dual-ai-card{background:var(--s2);border:1px solid var(--border);border-radius:var(--r);padding:14px}
+.dual-ai-header{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.dual-ai-logo{width:24px;height:24px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800}
+.dual-ai-score{font-size:22px;font-weight:800;color:var(--brand)}
+.dual-tip{display:flex;gap:6px;font-size:12px;color:var(--muted);line-height:1.5;margin-top:4px}
+.dual-tip::before{content:'→';color:var(--brand);flex-shrink:0}
+.andromeda-panel{background:linear-gradient(135deg,#1e1b4b,#312e81);border-radius:var(--rlg);padding:1.4rem;margin-bottom:1.5rem;border:1px solid rgba(165,180,252,.2)}
+.andromeda-title{color:#a5b4fc;font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;margin-bottom:12px}
+.andromeda-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media(max-width:600px){.andromeda-grid{grid-template-columns:1fr}}
+.andromeda-item{background:rgba(255,255,255,.07);border-radius:8px;padding:10px 12px}
+.andromeda-item-label{font-size:10px;font-weight:700;color:#a5b4fc;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px}
+.andromeda-item-val{font-size:13px;color:#e0e7ff;line-height:1.6}
+.cr-ad-analysis{margin-top:10px;border-top:1px solid var(--border);padding-top:10px}
+.cr-ad-scores{display:flex;gap:10px;margin-bottom:8px}
+.cr-ad-score-badge{flex:1;background:var(--s2);border:1px solid var(--border);border-radius:6px;padding:6px 8px;text-align:center}
+.cr-ad-score-label{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.cr-ad-score-val{font-size:16px;font-weight:800;color:var(--brand)}
+</style>
+</head>
+<body>
+
+<div id="loginScreen">
+  <div class="login-box">
+    <div class="login-logo">
+      <div class="login-logo-mark">D</div>
+      <div class="login-logo-text">Meta<span>Intelligence</span></div>
+    </div>
+    <h2 class="login-title">Análisis de Campañas IA</h2>
+    <p class="login-sub">Ingresá con tu cuenta de cliente</p>
+    <div class="lfield"><label class="llabel">Cliente</label><input class="linput" type="text" id="loginSlug" placeholder="ej: ros" autocomplete="username"></div>
+    <div class="lfield"><label class="llabel">Contraseña</label><input class="linput" type="password" id="loginPwd" placeholder="••••••••" autocomplete="current-password"></div>
+    <button class="lbtn" onclick="doLogin()">Ingresar</button>
+    <div class="lerr" id="loginErr">Credenciales incorrectas</div>
+    <div style="text-align:center;margin-top:1.2rem;font-size:11px;color:var(--muted2)">by <a href="https://doctanexus.com" target="_blank" style="color:var(--brand);text-decoration:none">Docta Nexus</a></div>
+  </div>
+</div>
+
+<div id="appScreen">
+  <header class="hdr">
+    <div class="hdr-brand">
+      <div class="cname"><span id="hdrName"></span><span class="sep">Meta Intelligence</span></div>
+      <div class="by-docta">by <a href="https://doctanexus.com" target="_blank">Docta Nexus</a></div>
+    </div>
+    <div class="hdr-actions">
+      <span class="last-upd" id="lastUpd"></span>
+      <button class="run-btn" id="runBtn" onclick="doRefresh()"><span id="runIco">▶</span> <span id="runTxt">Actualizar</span></button>
+    </div>
+  </header>
+
+  <nav class="nav-tabs">
+    <button class="nav-tab on" onclick="swNav(this,'p-dash')">📊 Dashboard</button>
+    <button class="nav-tab" onclick="swNav(this,'p-creatives');loadCreatives()">🎨 Creatividades</button>
+    <button class="nav-tab" onclick="swNav(this,'p-kpis')">🎯 KPIs & Objetivos</button>
+  </nav>
+
+  <!-- DASHBOARD -->
+  <div class="panel on" id="p-dash">
+    <div class="hero" style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px">
+      <div>
+        <h1>Dashboard <span>Meta Ads</span></h1>
+        <p>Análisis inteligente · Algoritmo Advantage+ / Andromeda</p>
+      </div>
+      <button onclick="exportPDF()" style="padding:8px 16px;background:var(--s2);border:1px solid var(--border2);border-radius:var(--r);color:var(--text);font-family:inherit;font-size:13px;font-weight:500;cursor:pointer;display:flex;align-items:center;gap:6px;transition:all .2s" onmouseover="this.style.borderColor='var(--brand)'" onmouseout="this.style.borderColor='var(--border2)'">
+        📄 Exportar PDF
+      </button>
+    </div>
+
+    <!-- PERÍODO -->
+    <div class="period-bar">
+      <span style="font-size:12px;color:var(--muted);font-weight:600">Período:</span>
+      <button class="pbtn" onclick="setPeriod('yesterday',this)">Ayer</button>
+      <button class="pbtn on" onclick="setPeriod('7d',this)">Últimos 7 días</button>
+      <button class="pbtn" onclick="setPeriod('14d',this)">Últimos 14 días</button>
+      <button class="pbtn" onclick="setPeriod('month',this)">Este mes</button>
+      <div class="pload" id="pload"><div class="spin spin-m"></div><span>cargando...</span></div>
+    </div>
+
+    <!-- KPI CARDS + PERSONALIZAR -->
+    <div class="score-row">
+      <div class="score-box tip-wrap">
+        <div class="tip-box" style="width:240px">
+          <strong>Score de salud</strong>
+          Puntuación 0–100 calculada por Claude en base a: fase del algoritmo, frecuencia, CTR, ROAS y alertas activas. 70+ saludable, 45–70 atención, menos de 45 crítico.
+        </div>
+        <div class="score-num" id="healthScore">—</div>
+        <div class="score-lbl">Score salud</div>
+        <div style="font-size:10px;color:var(--muted);margin-top:4px">hover ↑</div>
+      </div>
+      <div>
+        <div style="display:flex;justify-content:flex-end;margin-bottom:6px">
+          <button onclick="toggleCustomize()" style="font-size:11px;color:var(--muted);background:none;border:1px solid var(--border);border-radius:6px;padding:3px 10px;cursor:pointer;font-family:inherit;transition:all .2s" onmouseover="this.style.color='var(--brand)'" onmouseout="this.style.color='var(--muted)'">⚙ Personalizar</button>
+        </div>
+        <div id="customizePanel" style="display:none;background:var(--s2);border:1px solid var(--border);border-radius:var(--r);padding:12px;margin-bottom:8px;font-size:13px">
+          <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:10px">Mostrar / ocultar métricas</div>
+          <div style="display:flex;flex-wrap:wrap;gap:8px" id="metricToggles"></div>
+        </div>
+        <div class="mg" id="kpiCards"></div>
+      </div>
+    </div>
+
+    <!-- MÉTRICAS COMPLETAS — tabs con colores -->
+    <div class="card">
+      <div class="ctitle"><span class="dot dot-t"></span>Métricas completas</div>
+      <div class="itabs">
+        <button class="itab on" onclick="swIt(this,'im-base')" style="border-bottom:2px solid var(--teal)">🔵 Base</button>
+        <button class="itab" onclick="swIt(this,'im-conv')">🟢 Conversiones</button>
+        <button class="itab" onclick="swIt(this,'im-pixel')">🔷 Pixel</button>
+        <button class="itab" onclick="swIt(this,'im-msg')">💬 Mensajería</button>
+        <button class="itab" onclick="swIt(this,'im-video')">🎬 Video</button>
+        <button class="itab" onclick="swIt(this,'im-eng')">⭐ Engagement</button>
+      </div>
+      <div id="im-base" class="ipanel on"><div class="mg" id="mg-base"></div></div>
+      <div id="im-conv" class="ipanel"><div class="mg" id="mg-conv"></div></div>
+      <div id="im-pixel" class="ipanel">
+        <div style="font-size:12px;color:var(--muted);margin-bottom:10px;padding:8px 10px;background:var(--s2);border-radius:8px">🔷 Conversiones rastreadas por el <strong>Meta Pixel</strong> en tu sitio web.</div>
+        <div class="mg" id="mg-pixel"></div>
+      </div>
+      <div id="im-msg" class="ipanel">
+        <div class="mg" id="mg-msg"></div>
+        <div style="font-size:12px;color:var(--muted);margin-top:10px;padding:10px;background:var(--s2);border-radius:8px;line-height:1.7">💬 Depth 2 = respuesta recibida · Depth 3 = conversación activa · Depth 5 = conversación profunda (señal de intención real)</div>
+      </div>
+      <div id="im-video" class="ipanel">
+        <div style="font-size:12px;color:var(--muted);margin-bottom:10px;padding:8px 10px;background:var(--s2);border-radius:8px">🎬 Curva de retención del video. Cada columna muestra cuántas personas llegaron a ese punto.</div>
+        <div class="mg" id="mg-video"></div>
+      </div>
+      <div id="im-eng" class="ipanel"><div class="mg" id="mg-eng"></div></div>
+    </div>
+
+    <!-- CONTEXTO ANDROMEDA -->
+    <div class="card" id="andromedaCtx" style="display:none">
+      <div class="ctitle"><span class="dot dot-p"></span>✦ Contexto del algoritmo Andromeda</div>
+      <div id="andromedaCtxBody" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px"></div>
+    </div>
+
+    <!-- RESUMEN CAMPAÑAS -->
+    <div class="card">
+      <div class="ctitle"><span class="dot"></span>✦ Resumen Campañas activas</div>
+      <div class="tw"><table>
+        <thead><tr><th>Campaña</th><th>Objetivo</th><th>Estado</th><th>Fase</th><th>Resultado principal</th><th>Costo x resultado</th><th>Gasto</th><th>Impresiones</th><th>Clics</th><th>CPC</th><th>CTR</th><th>CPM</th><th>Frecuencia</th></tr></thead>
+        <tbody id="campsBody"><tr><td colspan="13" class="empty">Cargando...</td></tr></tbody>
+      </table></div>
+    </div>
+
+    <!-- TABLA RESULTADOS DETALLADA -->
+    <div class="card">
+      <div class="ctitle"><span class="dot dot-p"></span>✦ Resultados — Detalle por campaña</div>
+      <div class="cfg-sub" style="margin-bottom:.8rem">Todos los action types reportados por Meta para cada campaña. Las columnas se generan dinámicamente según los datos reales.</div>
+      <div class="tw"><table id="resultsTable">
+        <thead id="resultsHead"><tr><th>Cargando...</th></tr></thead>
+        <tbody id="resultsBody"><tr><td class="empty">Cargando...</td></tr></tbody>
+      </table></div>
+    </div>
+
+    <!-- RESUMEN CONJUNTOS -->
+    <div class="card">
+      <div class="ctitle"><span class="dot dot-a"></span>✦ Resumen Conjuntos de anuncios</div>
+      <div class="tw"><table>
+        <thead><tr><th>Conjunto / Audiencia</th><th>Campaña</th><th>Fase</th><th>Fatiga</th><th>Gasto</th><th>Impresiones</th><th>Clics</th><th>CPC</th><th>CTR</th><th>CPM</th><th>Frecuencia</th><th>Mensajes</th><th>Leads</th><th>Compras</th></tr></thead>
+        <tbody id="adsetsBody"><tr><td colspan="13" class="empty">Cargando...</td></tr></tbody>
+      </table></div>
+    </div>
+
+    <!-- RESUMEN ANUNCIOS -->
+    <div class="card">
+      <div class="ctitle"><span class="dot dot-t"></span>✦ Resumen Anuncios</div>
+      <div class="tw"><table>
+        <thead><tr><th>Anuncio</th><th>Conjunto</th><th>Campaña</th><th>Gasto</th><th>Impresiones</th><th>Clics</th><th>CPC</th><th>CTR</th><th>Frecuencia</th><th>Fatiga</th><th>Mensajes</th><th>Compartidos</th><th>Guardados</th></tr></thead>
+        <tbody id="adsBody"><tr><td colspan="13" class="empty">Cargando...</td></tr></tbody>
+      </table></div>
+    </div>
+
+    <!-- EMBUDO DE CONVERSIÓN -->
+    <div class="card">
+      <div class="ctitle"><span class="dot dot-t"></span>✦ Embudo de conversión — por campaña</div>
+      <div class="cfg-sub" style="margin-bottom:.8rem">Seguimiento del usuario desde la vista del contenido hasta la compra. Permite detectar en qué etapa se pierde la conversión.</div>
+      <!-- Funnel visual -->
+      <div id="funnelVisual" class="funnel-wrap"></div>
+      <!-- Tabla detalle -->
+      <div class="tw"><table id="funnelTable">
+        <thead><tr><th>Campaña</th><th>V.Contenido</th><th>Al carrito</th><th>Checkout</th><th>Info de pago</th><th>Info de envío</th><th>Compra (pixel)</th><th>Compra (onsite)</th><th>Conv. rate</th></tr></thead>
+        <tbody id="funnelBody"><tr><td colspan="9" class="empty">Cargando...</td></tr></tbody>
+      </table></div>
+    </div>
+
+    <!-- EMBUDO MENSAJERÍA -->
+    <div class="card">
+      <div class="ctitle"><span class="dot dot-p"></span>✦ Embudo de mensajería — profundidad de conversación</div>
+      <div class="cfg-sub" style="margin-bottom:.8rem">Depth 2 = primera respuesta · Depth 3 = conversación activa · Depth 5 = conversación profunda. La diferencia entre conexiones y depth 5 revela la calidad de la gestión comercial.</div>
+      <div class="tw"><table>
+        <thead><tr><th>Campaña</th><th>Conexiones</th><th>1ras resp.</th><th>Depth 2</th><th>Depth 3</th><th>Depth 5</th><th>% D2/Conn.</th><th>% D5/Conn.</th></tr></thead>
+        <tbody id="msgFunnelBody"><tr><td colspan="8" class="empty">Cargando...</td></tr></tbody>
+      </table></div>
+    </div>
+
+<!-- Curva de retención de video eliminada -->
+    <div style="background:var(--s1);border:1px solid var(--border);border-radius:var(--rlg);padding:1.4rem;margin-bottom:1.2rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
+      <div>
+        <div style="font-weight:600;font-size:15px;margin-bottom:4px">✦ Análisis del agente — Experto Meta Andromeda</div>
+        <div style="font-size:13px;color:var(--muted)">Ejecutá el análisis cuando tengas las métricas que necesitás revisar. Podés elegir el período antes de analizar.</div>
+      </div>
+      <button id="agentBtn" onclick="runAgentAnalysis()" style="padding:11px 22px;background:var(--purple);color:#fff;border:none;border-radius:var(--r);font-family:inherit;font-size:14px;font-weight:600;cursor:pointer;transition:all .2s;display:flex;align-items:center;gap:8px;white-space:nowrap" onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">
+        <span id="agentBtnIco">▶</span> <span id="agentBtnTxt">Ejecutar análisis</span>
+      </button>
+    </div>
+
+    <!-- ANÁLISIS DEL AGENTE -->
+    <div class="card" id="agentCard">
+      <div class="ctitle"><span class="dot dot-p"></span>✦ Análisis del agente — Experto Meta Andromeda</div>
+      <div id="agentContent"><div class="empty" style="padding:1.5rem">Ejecutá el análisis con el botón de arriba para ver el diagnóstico del agente.</div></div>
+    </div>
+
+    <!-- CAMPAÑAS CRÍTICAS -->
+    <div class="card" id="critCard" style="display:none">
+      <div class="ctitle"><span class="dot dot-d"></span>✦ Campañas que requieren atención inmediata</div>
+      <div id="critList"></div>
+    </div>
+
+    <!-- ANÁLISIS A NIVEL CONJUNTO DE ANUNCIOS -->
+    <div class="card" id="adsetInsightCard" style="display:none">
+      <div class="ctitle"><span class="dot dot-a"></span>✦ Análisis a Nivel Conjunto de Anuncios</div>
+      <div id="adsetInsightList"></div>
+    </div>
+
+    <!-- ANÁLISIS DE CREATIVIDADES -->
+    <div class="card" id="creativeCard" style="display:none">
+      <div class="ctitle"><span class="dot dot-amber"></span>✦ Análisis de creatividades</div>
+      <div id="creativeList"></div>
+    </div>
+
+    <!-- CONCLUSIÓN Y ACCIONES -->
+    <div class="card">
+      <div class="ctitle"><span class="dot dot-t"></span>✦ Conclusión y acciones recomendadas</div>
+      <div id="conclusionContent"><div class="empty" style="padding:1.5rem">Ejecutá el análisis para ver las recomendaciones.</div></div>
+    </div>
+
+    <!-- MEMORIA HISTÓRICA -->
+    <div class="card" id="memoryCard" style="display:none">
+      <div class="ctitle"><span class="dot dot-p"></span>✦ Memoria histórica del cliente
+        <span style="margin-left:auto;font-size:10px;color:var(--muted);font-weight:400;text-transform:none">Se actualiza automáticamente después de cada análisis</span>
+      </div>
+      <div id="memoryContent"></div>
+    </div>
+  </div>
+
+  <!-- KPIs -->
+  <div class="panel" id="p-kpis">
+    <div class="hero">
+      <h1>KPIs & <span>Objetivos</span></h1>
+      <p>Definí los targets de tu campaña — Claude los usa como prioridad en el análisis</p>
+    </div>
+    <div class="card">
+
+      <!-- PERFIL DEL CLIENTE -->
+      <div class="cfg-sep">
+        <div class="cfg-title">🎯 Tipo de negocio</div>
+        <div class="cfg-sub">Define el contexto general del cliente. Claude adapta benchmarks, prioridades y lenguaje del análisis según este perfil. Un eCommerce con campañas de awareness sigue siendo eCommerce — el perfil es del negocio, no de cada campaña.</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;margin-bottom:1.2rem" id="profileGrid">
+
+          <label class="profile-opt">
+            <input type="radio" name="clientProfile" value="ecommerce" style="display:none">
+            <div class="profile-card">
+              <div class="profile-icon">🛒</div>
+              <div class="profile-name">eCommerce</div>
+              <div class="profile-desc">Tienda online con pixel instalado. Vende productos físicos o digitales. Métricas clave: ROAS, CPA, valor de conversiones, embudo pixel.</div>
+            </div>
+          </label>
+
+          <label class="profile-opt">
+            <input type="radio" name="clientProfile" value="servicios_leads" style="display:none">
+            <div class="profile-card">
+              <div class="profile-icon">💼</div>
+              <div class="profile-name">Servicios — Leads y Mensajería</div>
+              <div class="profile-desc">Inmobiliarias, consultoras, agencias, salud, educación. Cierra ventas offline. Métricas clave: costo por mensaje, CPL, depth 5, primeras respuestas.</div>
+            </div>
+          </label>
+
+          <label class="profile-opt">
+            <input type="radio" name="clientProfile" value="productos_sin_ecommerce" style="display:none">
+            <div class="profile-card">
+              <div class="profile-icon">🏪</div>
+              <div class="profile-name">Productos sin eCommerce</div>
+              <div class="profile-desc">Vende productos físicos pero sin tienda online. Genera tráfico, mensajes o visitas al local. Métricas clave: clics, mensajes, vistas de landing, CPC.</div>
+            </div>
+          </label>
+
+          <label class="profile-opt">
+            <input type="radio" name="clientProfile" value="ong" style="display:none">
+            <div class="profile-card">
+              <div class="profile-icon">🎗️</div>
+              <div class="profile-name">ONG / Causa social</div>
+              <div class="profile-desc">Organizaciones sin fines de lucro. Busca donaciones, voluntarios, concientización. Métricas clave: donaciones, alcance, engagement, compartidos.</div>
+            </div>
+          </label>
+
+          <label class="profile-opt">
+            <input type="radio" name="clientProfile" value="marca" style="display:none">
+            <div class="profile-card">
+              <div class="profile-icon">📢</div>
+              <div class="profile-name">Marca / Institucional</div>
+              <div class="profile-desc">Branding puro, awareness corporativo. No busca conversión directa. Métricas clave: alcance único, CPM eficiente, frecuencia óptima.</div>
+            </div>
+          </label>
+
+          <label class="profile-opt">
+            <input type="radio" name="clientProfile" value="creador" style="display:none">
+            <div class="profile-card">
+              <div class="profile-icon">🎬</div>
+              <div class="profile-name">Creador / Media / Comunidad</div>
+              <div class="profile-desc">Creadores de contenido, medios, comunidades. Busca audiencia y engagement. Métricas clave: ThruPlays, retención de video, seguidores, compartidos.</div>
+            </div>
+          </label>
+
+        </div>
+
+        <div class="field">
+          <label class="flabel">Rubro y descripción del negocio <span style="color:var(--muted2)">(opcional pero muy recomendado)</span></label>
+          <input class="finput" type="text" id="kpi-rubro" placeholder="Ej: Indumentaria femenina premium, ticket promedio $85.000. Temporada alta oct-dic." style="margin-bottom:8px">
+        </div>
+      </div>
+
+      <!-- CONVERSIONES PERSONALIZADAS -->
+      <div class="cfg-sep">
+        <div class="cfg-title">🔧 Conversiones personalizadas</div>
+        <div class="cfg-sub">Si usás conversiones custom del pixel (fb_pixel_custom) o eventos con nombres genéricos, definí aquí qué miden en realidad. Claude usará estos nombres en el análisis.</div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <input class="finput" type="text" placeholder="Nombre técnico (ej: fb_pixel_custom)" id="cc-key-1">
+            <input class="finput" type="text" placeholder="Qué mide (ej: Donaciones, Consultas)" id="cc-val-1">
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <input class="finput" type="text" placeholder="Nombre técnico" id="cc-key-2">
+            <input class="finput" type="text" placeholder="Qué mide" id="cc-val-2">
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <input class="finput" type="text" placeholder="Nombre técnico" id="cc-key-3">
+            <input class="finput" type="text" placeholder="Qué mide" id="cc-val-3">
+          </div>
+        </div>
+        <div style="font-size:11px;color:var(--muted);margin-top:8px">Ejemplos: <span style="color:var(--brand)">offsite_conversion.fb_pixel_custom</span> → Donaciones &nbsp;|&nbsp; <span style="color:var(--brand)">onsite_conversion.flow_complete</span> → Formulario completado</div>
+      </div>
+
+      <!-- MÉTRICAS EXCLUIDAS -->
+      <div class="cfg-sep">
+        <div class="cfg-title">🚫 Métricas excluidas del análisis</div>
+        <div class="cfg-sub">Las métricas que marqués serán completamente ignoradas por Claude — no las analizará, no las mencionará ni hará recomendaciones sobre ellas. Útil cuando una métrica no aplica al modelo de negocio del cliente.</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px;margin-top:4px">
+          <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;background:var(--s2);border:1px solid var(--border2);border-radius:var(--r);padding:10px 12px">
+            <input type="checkbox" id="excl-roas" style="margin-top:2px;accent-color:var(--danger)">
+            <div><div style="font-weight:600;font-size:13px">ROAS</div><div style="font-size:11px;color:var(--muted)">Sin eCommerce o ventas online</div></div>
+          </label>
+          <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;background:var(--s2);border:1px solid var(--border2);border-radius:var(--r);padding:10px 12px">
+            <input type="checkbox" id="excl-compras" style="margin-top:2px;accent-color:var(--danger)">
+            <div><div style="font-weight:600;font-size:13px">Compras / Pixel de conversión</div><div style="font-size:11px;color:var(--muted)">Sin pixel de compras instalado</div></div>
+          </label>
+          <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;background:var(--s2);border:1px solid var(--border2);border-radius:var(--r);padding:10px 12px">
+            <input type="checkbox" id="excl-mensajeria" style="margin-top:2px;accent-color:var(--danger)">
+            <div><div style="font-weight:600;font-size:13px">Mensajería / WhatsApp</div><div style="font-size:11px;color:var(--muted)">No usa WhatsApp ni Messenger</div></div>
+          </label>
+          <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;background:var(--s2);border:1px solid var(--border2);border-radius:var(--r);padding:10px 12px">
+            <input type="checkbox" id="excl-video" style="margin-top:2px;accent-color:var(--danger)">
+            <div><div style="font-weight:600;font-size:13px">Video / ThruPlays</div><div style="font-size:11px;color:var(--muted)">No produce contenido de video</div></div>
+          </label>
+          <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;background:var(--s2);border:1px solid var(--border2);border-radius:var(--r);padding:10px 12px">
+            <input type="checkbox" id="excl-leads" style="margin-top:2px;accent-color:var(--danger)">
+            <div><div style="font-weight:600;font-size:13px">Leads / CPL</div><div style="font-size:11px;color:var(--muted)">No captura leads formalmente</div></div>
+          </label>
+          <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;background:var(--s2);border:1px solid var(--border2);border-radius:var(--r);padding:10px 12px">
+            <input type="checkbox" id="excl-engagement" style="margin-top:2px;accent-color:var(--danger)">
+            <div><div style="font-weight:600;font-size:13px">Engagement / Reacciones</div><div style="font-size:11px;color:var(--muted)">No le importa el engagement orgánico</div></div>
+          </label>
+          <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;background:var(--s2);border:1px solid var(--border2);border-radius:var(--r);padding:10px 12px">
+            <input type="checkbox" id="excl-seguidores" style="margin-top:2px;accent-color:var(--danger)">
+            <div><div style="font-weight:600;font-size:13px">Nuevos seguidores</div><div style="font-size:11px;color:var(--muted)">El crecimiento de comunidad no es objetivo</div></div>
+          </label>
+          <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;background:var(--s2);border:1px solid var(--border2);border-radius:var(--r);padding:10px 12px">
+            <input type="checkbox" id="excl-trafico" style="margin-top:2px;accent-color:var(--danger)">
+            <div><div style="font-weight:600;font-size:13px">Tráfico / Clics salida</div><div style="font-size:11px;color:var(--muted)">No tiene sitio web o landing relevante</div></div>
+          </label>
+        </div>
+      </div>
+
+      <!-- KPIs POR OBJETIVO DE CAMPAÑA -->
+      <div class="cfg-sep">
+        <div class="cfg-title">🛒 KPIs — Conversiones / Ventas</div>
+        <div class="cfg-sub">Para campañas con objetivo Ventas, Conversiones o Catálogo. Claude priorizará estas métricas al analizar campañas de este tipo.</div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="font-size:11px;font-weight:700;color:var(--brand);min-width:22px">1°</span>
+            <select class="finput" id="kpi-conv1" style="flex:1">
+              <option value="">— KPI principal —</option>
+              <option value="ROAS">ROAS (retorno sobre inversión)</option>
+              <option value="CPA">CPA (costo por adquisición)</option>
+              <option value="Compras">Compras / Conversiones</option>
+              <option value="Valor de conversiones">Valor de conversiones ($)</option>
+              <option value="Al carrito">Al carrito</option>
+              <option value="Checkout iniciado">Checkout iniciado</option>
+            </select>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="font-size:11px;font-weight:700;color:var(--muted);min-width:22px">2°</span>
+            <select class="finput" id="kpi-conv2" style="flex:1">
+              <option value="">— Segundo KPI —</option>
+              <option value="ROAS">ROAS</option>
+              <option value="CPA">CPA</option>
+              <option value="Compras">Compras</option>
+              <option value="Valor de conversiones">Valor de conversiones</option>
+              <option value="Al carrito">Al carrito</option>
+              <option value="CTR">CTR</option>
+              <option value="CPC">CPC</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="cfg-sep">
+        <div class="cfg-title">💬 KPIs — Mensajería / Leads</div>
+        <div class="cfg-sub">Para campañas con objetivo Mensajes, Generación de leads o similares.</div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="font-size:11px;font-weight:700;color:var(--brand);min-width:22px">1°</span>
+            <select class="finput" id="kpi-msg1" style="flex:1">
+              <option value="">— KPI principal —</option>
+              <option value="Conexiones de mensajería">Conexiones de mensajería</option>
+              <option value="Costo por mensaje">Costo por mensaje</option>
+              <option value="Leads">Leads generados</option>
+              <option value="CPL">CPL (costo por lead)</option>
+              <option value="Leads formulario">Leads de formulario nativo Meta</option>
+              <option value="Msg depth 5">Conversaciones profundas (Depth 5)</option>
+            </select>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="font-size:11px;font-weight:700;color:var(--muted);min-width:22px">2°</span>
+            <select class="finput" id="kpi-msg2" style="flex:1">
+              <option value="">— Segundo KPI —</option>
+              <option value="Conexiones de mensajería">Conexiones de mensajería</option>
+              <option value="Costo por mensaje">Costo por mensaje</option>
+              <option value="Leads">Leads</option>
+              <option value="CPL">CPL</option>
+              <option value="Msg depth 2">Depth 2 (respuesta recibida)</option>
+              <option value="Msg depth 5">Depth 5 (conversación profunda)</option>
+              <option value="CTR">CTR</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="cfg-sep">
+        <div class="cfg-title">🌐 KPIs — Tráfico</div>
+        <div class="cfg-sub">Para campañas con objetivo Tráfico o Clics en enlace.</div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="font-size:11px;font-weight:700;color:var(--brand);min-width:22px">1°</span>
+            <select class="finput" id="kpi-trafico1" style="flex:1">
+              <option value="">— KPI principal —</option>
+              <option value="Vistas de landing page">Vistas de landing page</option>
+              <option value="CTR">CTR (tasa de clics)</option>
+              <option value="CPC">CPC (costo por clic)</option>
+              <option value="Clics en enlace">Clics en enlace</option>
+            </select>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="font-size:11px;font-weight:700;color:var(--muted);min-width:22px">2°</span>
+            <select class="finput" id="kpi-trafico2" style="flex:1">
+              <option value="">— Segundo KPI —</option>
+              <option value="Vistas de landing page">Vistas de landing page</option>
+              <option value="CTR">CTR</option>
+              <option value="CPC">CPC</option>
+              <option value="CPM">CPM</option>
+              <option value="Frecuencia">Frecuencia</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="cfg-sep">
+        <div class="cfg-title">📢 KPIs — Alcance / Awareness</div>
+        <div class="cfg-sub">Para campañas con objetivo Alcance o Reconocimiento de marca.</div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="font-size:11px;font-weight:700;color:var(--brand);min-width:22px">1°</span>
+            <select class="finput" id="kpi-alcance1" style="flex:1">
+              <option value="">— KPI principal —</option>
+              <option value="Alcance">Alcance de personas únicas</option>
+              <option value="CPM">CPM (costo por mil impresiones)</option>
+              <option value="Frecuencia">Frecuencia de exposición</option>
+              <option value="Impresiones">Impresiones totales</option>
+            </select>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="font-size:11px;font-weight:700;color:var(--muted);min-width:22px">2°</span>
+            <select class="finput" id="kpi-alcance2" style="flex:1">
+              <option value="">— Segundo KPI —</option>
+              <option value="CPM">CPM</option>
+              <option value="Frecuencia">Frecuencia</option>
+              <option value="Alcance">Alcance</option>
+              <option value="Impresiones">Impresiones</option>
+              <option value="CTR">CTR</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="cfg-sep">
+        <div class="cfg-title">🎬 KPIs — Video / Reproducciones</div>
+        <div class="cfg-sub">Para campañas con objetivo Reproducciones de video o Interacción.</div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="font-size:11px;font-weight:700;color:var(--brand);min-width:22px">1°</span>
+            <select class="finput" id="kpi-video1" style="flex:1">
+              <option value="">— KPI principal —</option>
+              <option value="ThruPlays">ThruPlays (reproducciones completas)</option>
+              <option value="Costo por ThruPlay">Costo por ThruPlay</option>
+              <option value="Retención 75%">Retención al 75%</option>
+              <option value="Tiempo promedio vista">Tiempo promedio de vista</option>
+              <option value="Video views 3s">Reproducciones 3s</option>
+            </select>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="font-size:11px;font-weight:700;color:var(--muted);min-width:22px">2°</span>
+            <select class="finput" id="kpi-video2" style="flex:1">
+              <option value="">— Segundo KPI —</option>
+              <option value="ThruPlays">ThruPlays</option>
+              <option value="Retención 75%">Retención 75%</option>
+              <option value="Tiempo promedio vista">Tiempo promedio vista</option>
+              <option value="CPM">CPM</option>
+              <option value="CTR">CTR</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="cfg-sep">
+        <div class="cfg-title">⭐ KPIs — Engagement / Interacción</div>
+        <div class="cfg-sub">Para campañas con objetivo Interacción, Seguidores o Reconocimiento de marca.</div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="font-size:11px;font-weight:700;color:var(--brand);min-width:22px">1°</span>
+            <select class="finput" id="kpi-eng1" style="flex:1">
+              <option value="">— KPI principal —</option>
+              <option value="Post engagement">Post engagement total</option>
+              <option value="Nuevos seguidores">Nuevos seguidores (FB + IG)</option>
+              <option value="Visitas perfil IG">Visitas al perfil de Instagram</option>
+              <option value="Comentarios">Comentarios</option>
+              <option value="Compartidos">Compartidos</option>
+            </select>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="font-size:11px;font-weight:700;color:var(--muted);min-width:22px">2°</span>
+            <select class="finput" id="kpi-eng2" style="flex:1">
+              <option value="">— Segundo KPI —</option>
+              <option value="Post engagement">Post engagement</option>
+              <option value="Nuevos seguidores">Nuevos seguidores</option>
+              <option value="CPM">CPM</option>
+              <option value="Alcance">Alcance</option>
+              <option value="Compartidos">Compartidos</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+            <!-- BASE DE ANÁLISIS -->
+      <div class="cfg-sep">
+        <div class="cfg-title">📝 Contexto estratégico</div>
+        <div class="cfg-sub">Información clave que Claude usa en CADA análisis. Cuanto más completo, mejor el diagnóstico. Incluí: qué campañas son prioritarias, embudo de ventas, situaciones especiales, estacionalidad.</div>
+        <textarea class="finput" id="kpi-base" style="height:130px;resize:vertical;line-height:1.6" placeholder="Ej: Las campañas BOFU son las más importantes (mayor impacto en ventas). Las campañas de alcance son brand awareness, no se esperan conversiones directas. El proceso de venta es consultivo — el mensaje inicia pero el cierre es por teléfono. Temporada alta: octubre a diciembre. No pausar campañas en aprendizaje sin consultarme."></textarea>
+      </div>
+
+      <!-- OBJETIVOS NUMÉRICOS POR OBJETIVO DE CAMPAÑA -->
+      <div class="cfg-sep">
+        <div class="cfg-title">📊 Objetivos numéricos — Conversiones / Ventas</div>
+        <div class="cfg-sub">Para campañas con objetivo Ventas, Conversiones o Catálogo.</div>
+        <div class="cfg-grid">
+          <div class="field"><label class="flabel">ROAS mínimo</label><input class="finput" type="number" id="kpi-roas" placeholder="Ej: 3.0" step="0.1"></div>
+          <div class="field"><label class="flabel">CPA máximo ($)</label><input class="finput" type="number" id="kpi-cpa" placeholder="Ej: 5000"></div>
+          <div class="field"><label class="flabel">Compras mínimas / semana</label><input class="finput" type="number" id="kpi-purchases" placeholder="Ej: 20"></div>
+          <div class="field"><label class="flabel">Valor de conversiones mínimo ($)</label><input class="finput" type="number" id="kpi-conv-value" placeholder="Ej: 500000"></div>
+        </div>
+      </div>
+
+      <div class="cfg-sep">
+        <div class="cfg-title">💬 Objetivos numéricos — Mensajería / Leads</div>
+        <div class="cfg-sub">Para campañas con objetivo Mensajes, Generación de leads o Reconocimiento.</div>
+        <div class="cfg-grid">
+          <div class="field"><label class="flabel">Costo por mensaje máximo ($)</label><input class="finput" type="number" id="kpi-cpmsg" placeholder="Ej: 3000"></div>
+          <div class="field"><label class="flabel">Conexiones mínimas / semana</label><input class="finput" type="number" id="kpi-msgconn" placeholder="Ej: 50"></div>
+          <div class="field"><label class="flabel">CPL máximo ($)</label><input class="finput" type="number" id="kpi-cpl" placeholder="Ej: 2000"></div>
+          <div class="field"><label class="flabel">Leads mínimos / semana</label><input class="finput" type="number" id="kpi-leads" placeholder="Ej: 30"></div>
+        </div>
+      </div>
+
+      <div class="cfg-sep">
+        <div class="cfg-title">🌐 Objetivos numéricos — Tráfico</div>
+        <div class="cfg-sub">Para campañas con objetivo Tráfico o Clics en enlace.</div>
+        <div class="cfg-grid">
+          <div class="field"><label class="flabel">CTR mínimo (%)</label><input class="finput" type="number" id="kpi-ctr" placeholder="Ej: 1.0" step="0.1"></div>
+          <div class="field"><label class="flabel">CPC máximo ($)</label><input class="finput" type="number" id="kpi-cpc" placeholder="Ej: 500"></div>
+          <div class="field"><label class="flabel">Vistas de landing mínimas / semana</label><input class="finput" type="number" id="kpi-landing" placeholder="Ej: 500"></div>
+          <div class="field"><label class="flabel">Clics mínimos / semana</label><input class="finput" type="number" id="kpi-clicks" placeholder="Ej: 1000"></div>
+        </div>
+      </div>
+
+      <div class="cfg-sep">
+        <div class="cfg-title">📢 Objetivos numéricos — Alcance / Awareness</div>
+        <div class="cfg-sub">Para campañas con objetivo Alcance, Reconocimiento de marca o Reproducciones de video.</div>
+        <div class="cfg-grid">
+          <div class="field"><label class="flabel">CPM máximo ($)</label><input class="finput" type="number" id="kpi-cpm" placeholder="Ej: 1000"></div>
+          <div class="field"><label class="flabel">Frecuencia máxima</label><input class="finput" type="number" id="kpi-freq" placeholder="Ej: 4.0" step="0.1"></div>
+          <div class="field"><label class="flabel">Alcance mínimo / semana</label><input class="finput" type="number" id="kpi-reach" placeholder="Ej: 50000"></div>
+          <div class="field"><label class="flabel">Impresiones mínimas / semana</label><input class="finput" type="number" id="kpi-impressions" placeholder="Ej: 100000"></div>
+        </div>
+      </div>
+
+      <div class="cfg-sep">
+        <div class="cfg-title">🎬 Objetivos numéricos — Video</div>
+        <div class="cfg-sub">Para campañas con objetivo Reproducciones de video o Interacción.</div>
+        <div class="cfg-grid">
+          <div class="field"><label class="flabel">ThruPlays mínimos / semana</label><input class="finput" type="number" id="kpi-thruplays" placeholder="Ej: 1000"></div>
+          <div class="field"><label class="flabel">Costo por ThruPlay máximo ($)</label><input class="finput" type="number" id="kpi-cptp" placeholder="Ej: 50"></div>
+          <div class="field"><label class="flabel">Retención mínima al 75% (%)</label><input class="finput" type="number" id="kpi-retention" placeholder="Ej: 20" step="0.1"></div>
+          <div class="field"><label class="flabel">Tiempo promedio vista mínimo (s)</label><input class="finput" type="number" id="kpi-avgtime" placeholder="Ej: 10" step="0.1"></div>
+        </div>
+      </div>
+
+      <div class="cfg-sep">
+        <div class="cfg-title">⚙️ Presupuesto general y configuración</div>
+        <div class="cfg-grid">
+          <div class="field"><label class="flabel">Presupuesto diario total</label><input class="finput" type="number" id="kpi-budget" placeholder="Ej: 10000"></div>
+          <div class="field"><label class="flabel">Presupuesto mensual total</label><input class="finput" type="number" id="kpi-budget-monthly" placeholder="Ej: 300000"></div>
+          <div class="field"><label class="flabel">Conversiones mínimas / semana</label><input class="finput" type="number" id="kpi-convs" placeholder="Ej: 50"></div>
+          <div class="field"><label class="flabel">Score de salud mínimo</label><input class="finput" type="number" id="kpi-minscore" placeholder="Ej: 60" min="0" max="100"></div>
+          <div class="field" style="grid-column:1/-1">
+            <label class="flabel">Moneda de la cuenta publicitaria</label>
+            <select class="finput" id="kpi-currency">
+              <option value="ARS">ARS — Peso argentino ($)</option>
+              <option value="EUR">EUR — Euro (€)</option>
+              <option value="USD">USD — Dólar estadounidense (US$)</option>
+              <option value="BRL">BRL — Real brasileño (R$)</option>
+              <option value="MXN">MXN — Peso mexicano ($)</option>
+              <option value="CLP">CLP — Peso chileno ($)</option>
+              <option value="COP">COP — Peso colombiano ($)</option>
+              <option value="UYU">UYU — Peso uruguayo ($U)</option>
+              <option value="PEN">PEN — Sol peruano (S/)</option>
+              <option value="GBP">GBP — Libra esterlina (£)</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:10px">
+        <button class="sbtn" onclick="saveKpis()">Guardar objetivos</button>
+        <span class="sok" id="kpi-ok">✓ Guardado</span>
+      </div>
+    </div>
+  </div>
+
+  <footer class="app-footer">
+    <div class="footer-inner">
+      <a href="https://doctanexus.com" target="_blank" class="footer-logo">
+        <div class="flm">D</div>
+        <div class="flt">Docta<span>Nexus</span></div>
+      </a>
+      <div class="fcopy">
+        <strong style="color:var(--muted)">Meta Intelligence</strong> es propiedad intelectual de
+        <a href="https://doctanexus.com" target="_blank">Docta Nexus</a>.<br>
+        &copy; <span id="footerYear"></span> Docta Nexus — Todos los derechos reservados.
+      </div>
+    </div>
+  </footer>
+</div>
+
+  <!-- PANEL CREATIVIDADES -->
+  <div class="panel" id="p-creatives">
+    <div class="hero">
+      <h1>🎨 Análisis de <span>Creatividades</span></h1>
+      <p>Visualizá el rendimiento de cada anuncio con su imagen, métricas y análisis IA.</p>
+    </div>
+
+    <!-- Selector de período -->
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:1.5rem">
+      <div class="cr-period-bar" style="margin-bottom:0">
+      <button class="pbtn on" onclick="setCrPeriod(this,'last_7d')">7 días</button>
+      <button class="pbtn" onclick="setCrPeriod(this,'last_14d')">14 días</button>
+      <button class="pbtn" onclick="setCrPeriod(this,'last_30d')">30 días</button>
+      <button class="pbtn" onclick="setCrPeriod(this,'last_month')">Mes anterior</button>
+    </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-ghost btn-sm" onclick="loadDeepAnalysis()" id="btn-deep-analysis">
+          🤖 Análisis Dual IA
+        </button>
+        <button class="btn btn-sm" style="background:var(--brand);color:#fff" onclick="sendCreativesEmail()" id="btn-send-email">
+          ✉️ Enviar por correo
+        </button>
+      </div>
+    </div>
+
+    <!-- Contenedor -->
+    <div id="cr-container">
+      <div class="cr-loading"><span class="spinner"></span> Cargando creatividades...</div>
+    </div>
+  </div>
+
+
+
+
+<script>
+document.getElementById('footerYear').textContent = new Date().getFullYear();
+let S=null,P=null,clientCfg={},dashData=null;
+let CURRENCY='ARS', CURR_SYM='$';
+
+function setCurrency(c){
+  CURRENCY = c || 'ARS';
+  const symbols = { ARS:'$', EUR:'€', USD:'US$', BRL:'R$', MXN:'$', CLP:'$', COP:'$', UYU:'$U', PEN:'S/', GBP:'£' };
+  CURR_SYM = symbols[CURRENCY] || '$';
+}
+// Formatear valor monetario con símbolo de la moneda del cliente
+
+async function doLogin(){
+  const slug=document.getElementById('loginSlug').value.trim().toLowerCase();
+  const pwd=document.getElementById('loginPwd').value.trim();
+  if(!slug||!pwd) return;
+  try{
+    const r=await fetch('/api/'+slug+'/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pwd})});
+    const d=await r.json();
+    if(!r.ok){document.getElementById('loginErr').style.display='block';return;}
+    S=slug;P=pwd;clientCfg=d; saveSession(slug, pwd); saveSession(slug, pwd);
+    setCurrency(d.currency);
+    applyBranding(d);
+    document.getElementById('loginScreen').style.display='none';
+    document.getElementById('appScreen').style.display='block';
+    document.getElementById('hdrName').textContent=d.name;
+    loadHiddenMetrics();
+    loadKpiForm(d.kpi_targets||{});
+    loadDash();
+  }catch(e){document.getElementById('loginErr').style.display='block';}
+}
+document.getElementById('loginPwd').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
+
+function applyBranding(d){
+  if(!d.colorPrimary) return;
+  const h=d.colorPrimary;
+  const rgba=(h,a)=>{const n=parseInt(h.slice(1),16);return`rgba(${n>>16},${(n>>8)&255},${n&255},${a})`;};
+  document.documentElement.style.setProperty('--brand',h);
+  document.documentElement.style.setProperty('--brand2',d.colorAccent||h);
+  document.documentElement.style.setProperty('--brand-dim',rgba(h,.07));
+  document.documentElement.style.setProperty('--brand-dim2',rgba(h,.15));
+  document.documentElement.style.setProperty('--brand-btn-text',d.colorBtnText||'#0b0b0d');
+}
+
+function swNav(btn,id){
+  document.querySelectorAll('.nav-tab').forEach(b=>b.classList.remove('on'));
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('on'));
+  btn.classList.add('on'); document.getElementById(id).classList.add('on');
+}
+function swIt(btn,id){
+  const c=btn.closest('.card');
+  c.querySelectorAll('.itab').forEach(b=>b.classList.remove('on'));
+  c.querySelectorAll('.ipanel').forEach(p=>p.classList.remove('on'));
+  btn.classList.add('on'); document.getElementById(id).classList.add('on');
+}
+
+let hiddenMetrics = [];
+let currentPeriod = '7d';
+
+function setPeriod(period, btn){
+  document.querySelectorAll('.pbtn').forEach(b=>b.classList.remove('on'));
+  btn.classList.add('on');
+  currentPeriod = period;
+  // Solo marcar el período — NO fetchear hasta que el usuario presione Actualizar
+  // Mostrar indicador visual de que hay datos pendientes
+  const upd = document.getElementById('lastUpd');
+  if(upd){
+    const base = upd.textContent.replace(/^⚠️ Pendiente — /,'').replace(/^Actualizado: /,'');
+    upd.textContent = '⚠️ Pendiente — presioná Actualizar';
+    upd.style.color = 'var(--amber)';
+  }
+}
+
+async function loadDash(){
+  // Solo cargar la configuración del cliente — NO traer métricas automáticamente
+  // El usuario debe presionar Actualizar para ver datos
+  setRunning(true);
+  try{
+    const r=await fetch(`/api/${S}/dashboard?password=${encodeURIComponent(P)}`);
+    const d=await r.json();
+    if(!r.ok) throw new Error(d.error);
+    dashData=d;
+    if(d.currency) setCurrency(d.currency);
+
+    // Cargar configuración (KPIs, perfil, métricas excluidas) pero NO renderizar datos
+    if(d.kpi_targets) loadKpiForm(d.kpi_targets);
+    if(d.dash_config?.hiddenMetrics) hiddenMetrics = d.dash_config.hiddenMetrics;
+
+    // Mostrar estado vacío con instrucción clara
+    const upd = document.getElementById('lastUpd');
+    if(upd){ upd.textContent = 'Seleccioná un período y presioná Actualizar'; upd.style.color = 'var(--muted)'; }
+
+    // Mostrar placeholder vacío
+    showEmptyState();
+    loadAndRenderMemory();
+  }catch(e){
+    document.getElementById('agentContent').innerHTML=`<div class="empty">Error al cargar: ${e.message}</div>`;
+  }finally{setRunning(false);}
+}
+
+function showEmptyState(){
+  const empty = `<div class="empty" style="padding:3rem 2rem;text-align:center">
+    <div style="font-size:2rem;margin-bottom:1rem;opacity:.4">📊</div>
+    <div style="font-size:15px;font-weight:600;color:var(--text);margin-bottom:.5rem">Sin datos cargados</div>
+    <div style="font-size:13px;color:var(--muted)">Seleccioná el período y presioná <strong>Actualizar</strong> para ver las métricas.</div>
+  </div>`;
+  // Limpiar las tablas y el análisis
+  const targets = ['kpiCards','campsBody','adsetsBody','adsBody','funnelBody','msgFunnelBody','funnelVisual','resultsBody','agentContent'];
+  targets.forEach(id => {
+    const el = document.getElementById(id);
+    if(el) el.innerHTML = id === 'agentContent' ? empty : '<tr><td colspan="13" class="empty" style="padding:1.5rem;text-align:center;color:var(--muted)">— Presioná Actualizar —</td></tr>';
+  });
+  const ctxCard = document.getElementById('andromedaCtx');
+  if(ctxCard) ctxCard.style.display='none';
+  const lastUpd = document.getElementById('lastUpd');
+  if(lastUpd){ lastUpd.textContent = '— Presioná Actualizar —'; lastUpd.style.color='var(--muted)'; }
+}
+async function doRefresh(){
+  setRunning(true);
+  const upd = document.getElementById('lastUpd');
+  if(upd) upd.style.color = '';
+  try{
+    // Usar siempre /metrics con el período seleccionado — endpoint unificado
+    const r = await fetch(`/api/${S}/metrics?password=${encodeURIComponent(P)}&period=${currentPeriod}`);
+    const d = await r.json();
+    if(!r.ok) throw new Error(d.error);
+    if(d.currency) setCurrency(d.currency);
+
+    if(currentPeriod === '7d'){
+      // Para 7d actualizar el snapshot guardado en background (async, no bloquea)
+      fetch(`/api/${S}/refresh-metrics`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:P})})
+        .then(r=>r.json()).then(dd=>{ if(dd && !dd.error){ dashData=dd; } }).catch(()=>{});
+      // Renderizar con los datos frescos de /metrics
+      renderPeriod(d, '7d');
+      loadAndRenderMemory();
+    } else {
+      renderPeriod(d, currentPeriod);
+    }
+
+    const now = new Date().toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
+    const lbl = {'7d':'Últ. 7 días','14d':'Últ. 14 días','month':'Este mes','yesterday':'Ayer'}[currentPeriod]||currentPeriod;
+    if(upd){ upd.textContent = `Actualizado: ${now} — ${lbl}`; upd.style.color = 'var(--success)'; }
+  }catch(e){alert('Error: '+e.message);}
+  finally{setRunning(false);}
+}
+function setRunning(on){
+  const btn=document.getElementById('runBtn');
+  btn.disabled=on;
+  document.getElementById('runTxt').textContent=on?'Actualizando...':'Actualizar';
+  document.getElementById('runIco').innerHTML=on?'<span class="spin"></span>':'▶';
+}
+
+// ── CONSTANTES GLOBALES ──────────────────────────────────────
+const OBJ_LABEL = {
+  'OUTCOME_LEADS':'Leads','OUTCOME_SALES':'Ventas','OUTCOME_ENGAGEMENT':'Engagement',
+  'OUTCOME_TRAFFIC':'Tráfico','OUTCOME_AWARENESS':'Alcance','OUTCOME_APP_PROMOTION':'App',
+  'MESSAGES':'Mensajes','CONVERSIONS':'Conversiones','LEAD_GENERATION':'Leads',
+  'LINK_CLICKS':'Tráfico','REACH':'Alcance','BRAND_AWARENESS':'Awareness',
+  'VIDEO_VIEWS':'Video','PAGE_LIKES':'Seguidores','POST_ENGAGEMENT':'Engagement','APP_INSTALLS':'App',
+};
+
+function getMainResult(c){
+  const obj=(c.objective||'').toUpperCase();
+  const p=[];
+  if(obj.includes('LEAD')||obj==='OUTCOME_LEADS'||obj==='LEAD_GENERATION'){
+    const v=(c.leads||0)+(c.leadgenLeads||0);
+    if(v>0) p.push(`<strong>${v}</strong> <span style="font-size:11px;color:var(--muted)">leads</span>`);
+    if(c.messagingConn>0) p.push(`<strong>${c.messagingConn}</strong> <span style="font-size:11px;color:var(--muted)">msgs.</span>`);
+  } else if(obj.includes('SALE')||obj==='OUTCOME_SALES'||obj==='CONVERSIONS'){
+    if(c.purchases>0) p.push(`<strong>${c.purchases}</strong> <span style="font-size:11px;color:var(--muted)">compras</span>`);
+    if(c.roas) p.push(`<strong>${c.roas.toFixed(2)}x</strong> <span style="font-size:11px;color:var(--muted)">ROAS</span>`);
+  } else if(obj.includes('ENGAGEMENT')||obj==='POST_ENGAGEMENT'){
+    if(c.postEngagement>0) p.push(`<strong>${fn(c.postEngagement)}</strong> <span style="font-size:11px;color:var(--muted)">eng.</span>`);
+    if(c.videoViews>0) p.push(`<strong>${fn(c.videoViews)}</strong> <span style="font-size:11px;color:var(--muted)">views</span>`);
+  } else if(obj.includes('TRAFFIC')||obj==='LINK_CLICKS'){
+    if(c.linkClicks>0) p.push(`<strong>${fn(c.linkClicks)}</strong> <span style="font-size:11px;color:var(--muted)">clics</span>`);
+    if(c.landingPageViews>0) p.push(`<strong>${fn(c.landingPageViews)}</strong> <span style="font-size:11px;color:var(--muted)">v.land.</span>`);
+  } else if(obj.includes('AWARE')||obj==='REACH'){
+    if(c.reach>0) p.push(`<strong>${fn(c.reach)}</strong> <span style="font-size:11px;color:var(--muted)">alcance</span>`);
+  } else if(obj==='MESSAGES'){
+    if(c.messagingConn>0) p.push(`<strong>${c.messagingConn}</strong> <span style="font-size:11px;color:var(--muted)">msgs.</span>`);
+    if(c.messagingFirstReply>0) p.push(`<strong>${c.messagingFirstReply}</strong> <span style="font-size:11px;color:var(--muted)">resp.</span>`);
+  } else if(obj==='VIDEO_VIEWS'){
+    if(c.videoViews>0) p.push(`<strong>${fn(c.videoViews)}</strong> <span style="font-size:11px;color:var(--muted)">views</span>`);
+  } else {
+    if(c.messagingConn>0) p.push(`<strong>${c.messagingConn}</strong> <span style="font-size:11px;color:var(--muted)">msgs.</span>`);
+    else if(c.leads>0) p.push(`<strong>${c.leads}</strong> <span style="font-size:11px;color:var(--muted)">leads</span>`);
+    else if(c.purchases>0) p.push(`<strong>${c.purchases}</strong> <span style="font-size:11px;color:var(--muted)">compras</span>`);
+  }
+  return p.join(' · ')||'<span style="color:var(--muted)">—</span>';
+}
+
+function renderDash(d){
+  if(!d){ console.error('[renderDash] sin datos'); return; }
+
+  const acc   = d.metrics?.account    || {};
+  const an    = d.analysis            || {};
+  const kpis  = clientCfg.kpi_targets || {};
+  const camps = d.metrics?.campaigns  || [];
+  const adsets= d.metrics?.adsets     || [];
+  const ads   = d.metrics?.ads        || [];
+
+  console.log('[renderDash] spend='+acc.spend+' camps='+camps.length+' adsets='+adsets.length+' ads='+ads.length);
+  // Si no hay datos de cuenta mostrar placeholder pero seguir renderizando estructura
+  // Si tiene análisis viejo (sin summary_items), mostrar aviso en el agente pero seguir renderizando el resto
+  const hasNewFormat = Array.isArray(an.summary_items);
+  if(!hasNewFormat && an){
+    document.getElementById('agentContent').innerHTML=`
+      <div style="background:var(--s2);border:1px solid var(--border2);border-radius:var(--r);padding:1rem 1.2rem;font-size:14px;line-height:1.7;color:var(--muted)">
+        ⚠️ Hacé clic en <strong style="color:var(--brand)">Actualizar</strong> para regenerar el análisis con el formato nuevo.
+      </div>`;
+  }
+
+  // Score
+  const sc=an.health_score||0;
+  const el=document.getElementById('healthScore');
+  el.textContent=sc||'—';
+  el.className='score-num '+(sc>=70?'sg':sc>=45?'sw':'sb');
+  console.log('[renderDash] ✓ score');
+
+  // KPI cards — sin comparativa
+  const kpiDefs = [
+    {id:'Gasto',       v:fc(acc.spend||0),                         ok:null},
+    {id:'ROAS',        v:acc.roas?acc.roas.toFixed(2)+'x':'—',     ok:kpis.target_roas?(acc.roas||0)>=kpis.target_roas:null},
+    {id:'CTR',         v:(acc.ctr||0).toFixed(2)+'%',              ok:kpis.target_ctr?(acc.ctr||0)>=kpis.target_ctr:null},
+    {id:'CPM',         v:fc(acc.cpm||0),                           ok:kpis.target_cpm?(acc.cpm||0)<=kpis.target_cpm:null},
+    {id:'Frecuencia',  v:(acc.frequency||0).toFixed(1),            ok:kpis.target_frequency?(acc.frequency||0)<=kpis.target_frequency:null},
+    {id:'Impresiones', v:fn(acc.impressions||0),                   ok:null},
+    {id:'Alcance',     v:fn(acc.reach||0),                         ok:null},
+    {id:'Clics',       v:fn(acc.clicks||0),                        ok:null},
+    {id:'Mensajes',    v:fn(acc.messagingConn||0),                 ok:kpis.target_msgconn?(acc.messagingConn||0)>=kpis.target_msgconn:null},
+    {id:'Leads',       v:fn(acc.leads||0),                         ok:null},
+    {id:'Compras',     v:fn(acc.purchases||0),                     ok:null},
+    {id:'CPL',         v:acc.cpl?fc(acc.cpl):'—',                  ok:kpis.target_cpl?(acc.cpl||0)<=kpis.target_cpl:null},
+    {id:'Costo x msg', v:acc.cpmsg?fc(acc.cpmsg):'—',              ok:kpis.target_cpmsg?(acc.cpmsg||0)<=kpis.target_cpmsg:null},
+    {id:'V.Landing',   v:fn(acc.landingPageViews||0),              ok:null},
+    {id:'Al carrito',  v:fn(acc.addToCart||0),                     ok:null},
+    {id:'Engagement',  v:fn(acc.postEngagement||0),                ok:null},
+    {id:'Video views', v:fn(acc.videoViews||0),                    ok:null},
+    {id:'Compartidos', v:fn(acc.postShares||0),                    ok:null},
+    {id:'Guardados',   v:fn(acc.postSaves||0),                     ok:null},
+    {id:'Seg. FB',     v:fn(acc.newFollowersPage||0),              ok:null},
+    {id:'Seg. IG',     v:fn(acc.newFollowersIG||0),                ok:null},
+  ];
+  document.getElementById('kpiCards').innerHTML = kpiDefs
+    .filter(k=>!hiddenMetrics.includes(k.id))
+    .map(k=>mkKpi(k.id, k.v, k.ok, ''))
+    .join('');
+  console.log('[renderDash] ✓ kpiCards');
+
+  // Métricas tabs — sin comparativa
+  fillMg('mg-base',[
+    ['Impresiones',fn(acc.impressions)],
+    ['Alcance',fn(acc.reach)],
+    ['Clics',fn(acc.clicks)],
+    ['Clics únicos',fn(acc.uniqueClicks)],
+    ['CTR único',(acc.uniqueCtr||0).toFixed(2)+'%'],
+    ['CPM',fc(acc.cpm)],
+    ['Frecuencia',(acc.frequency||0).toFixed(1)],
+    ['ROAS',acc.roas?acc.roas.toFixed(2)+'x':'—'],
+    ['Gasto',fc(acc.spend)],
+  ]);
+  fillMg('mg-conv',[
+    ['Compras (total)',fn(acc.purchases)],
+    ['Valor compras',fc(acc.purchaseValue)],
+    ['Leads',fn(acc.leads)],
+    ['CPL',acc.cpl?fc(acc.cpl):'—'],
+    ['Leads form.',fn(acc.leadgenLeads)],
+    ['Registros',fn(acc.completeReg)],
+    ['Al carrito',fn(acc.addToCart)],
+    ['Checkout',fn(acc.initiateCheckout)],
+    ['V. landing',fn(acc.landingPageViews)],
+    ['Clics salida',fn(acc.outboundClicks)],
+    ['Donaciones',fn(acc.donations)],
+  ]);
+  fillMg('mg-pixel',[
+    ['V. Contenido',fn(acc.pixelViewContent)],
+    ['Búsqueda',fn(acc.pixelSearch)],
+    ['Al carrito',fn(acc.pixelAddToCart)],
+    ['Wishlist',fn(acc.pixelWishlist)],
+    ['Checkout',fn(acc.pixelCheckout)],
+    ['Compras',fn(acc.pixelPurchase)],
+    ['Leads pixel',fn(acc.pixelLead)],
+    ['Registros',fn(acc.pixelReg)],
+    ['Conversiones custom',fn(acc.pixelCustom)],
+  ]);
+  fillMg('mg-msg',[
+    ['Conexiones',fn(acc.messagingConn)],
+    ['Costo x msg',acc.cpmsg?fc(acc.cpmsg):'—'],
+    ['1ras resp.',fn(acc.messagingFirstReply)],
+    ['Depth 2',fn(acc.msgDepth2)],
+    ['Depth 3',fn(acc.msgDepth3)],
+    ['Depth 5',fn(acc.msgDepth5)],
+  ]);
+  fillMg('mg-video',[
+    ['3 segundos',fn(acc.videoViews3s||acc.videoViews)],
+    ['10 segundos',fn(acc.videoViews10s)],
+    ['15 segundos',fn(acc.videoViews15s)],
+    ['30 segundos',fn(acc.videoViews30s)],
+    ['25%',fn(acc.videoP25)],
+    ['50%',fn(acc.videoP50)],
+    ['75%',fn(acc.videoP75)],
+    ['95%',fn(acc.videoP95)],
+    ['ThruPlays (100%)',fn(acc.thruPlays)],
+    ['T. prom. vista',(acc.videoAvgTime||0)>0?`${(acc.videoAvgTime).toFixed(1)}s`:'—'],
+  ]);
+  fillMg('mg-eng',[
+    ['Post engagement',fn(acc.postEngagement)],
+    ['Reacciones',fn(acc.postReactions)],
+    ['Me gusta',fn(acc.postLikes)],
+    ['Comentarios',fn(acc.postComments)],
+    ['Compartidos',fn(acc.postShares)],
+    ['Guardados',fn(acc.postSaves)],
+    ['Page engagement',fn(acc.pageEngagement)],
+    ['Nuevos seg. FB',fn(acc.newFollowersPage)],
+    ['Nuevos seg. IG',fn(acc.newFollowersIG)],
+    ['Visitas perfil IG',fn(acc.igProfileVisits)],
+  ]);
+  console.log('[renderDash] ✓ fillMg');
+
+  // ── EMBUDO DE CONVERSIÓN por campaña ──────────────────────
+  renderFunnelVisual(camps, 'funnelVisual');
+  const funnelEl = document.getElementById('funnelBody');
+  if(funnelEl){
+    // Función segura: lee SIEMPRE de _actions (entero) para evitar valores monetarios
+    const ga2 = (camp, type) => {
+      if(camp._actions){
+        const a = camp._actions.find(a => a.action_type === type);
+        return a ? parseInt(a.value)||0 : 0;
+      }
+      // Fallback: leer campo pre-calculado del server (ya es entero)
+      const c = safeC(camp);
+      const map = {
+        'offsite_conversion.fb_pixel_view_content': c.pixelViewContent,
+        'offsite_conversion.fb_pixel_search':        c.pixelSearch,
+        'offsite_conversion.fb_pixel_add_to_cart':   c.pixelAddToCart,
+        'offsite_conversion.fb_pixel_add_to_wishlist':c.pixelWishlist,
+        'offsite_conversion.fb_pixel_initiate_checkout': c.pixelCheckout||c.initiateCheckout,
+        'offsite_conversion.fb_pixel_add_payment_info':   c.pixelPaymentInfo||0,
+        'offsite_conversion.fb_pixel_add_shipping_info':  c.pixelShippingInfo||0,
+        'offsite_conversion.fb_pixel_purchase':           c.pixelPurchase,
+        'onsite_conversion.purchase':                     c.onsitePurchase,
+      };
+      return parseInt(map[type])||0;
+    };
+    const z = v => v>0?`<strong>${fn(v)}</strong>`:`<span style="color:var(--border2)">—</span>`;
+    const pct = (a,b) => b>0?`<span style="color:${(a/b)>=0.03?'var(--success)':(a/b)>=0.01?'var(--amber)':'var(--danger)'};font-size:12px">${((a/b)*100).toFixed(2)}%</span>`:`<span style="color:var(--border2)">—</span>`;
+    funnelEl.innerHTML = camps.length ? camps.map(camp=>{
+      const c = safeC(camp);
+      const campName = camp.name||camp.campaign_name||c.name||c.campaign_name||camp.campaignName||
+                       (camp.id?'Camp. '+camp.id:'—');
+      // Leer métricas siempre como enteros desde _actions
+      const viewContent  = ga2(camp,'offsite_conversion.fb_pixel_view_content');
+      const addToCart    = ga2(camp,'offsite_conversion.fb_pixel_add_to_cart');
+      const checkout     = ga2(camp,'offsite_conversion.fb_pixel_initiate_checkout');
+      const paymentInfo  = ga2(camp,'offsite_conversion.fb_pixel_add_payment_info');
+      const shippingInfo = ga2(camp,'offsite_conversion.fb_pixel_add_shipping_info');
+      const pixelPurch   = ga2(camp,'offsite_conversion.fb_pixel_purchase');
+      const onsitePurch  = ga2(camp,'onsite_conversion.purchase');
+      const totalPurch   = pixelPurch||onsitePurch||parseInt(c.purchases)||0;
+      const base         = viewContent||addToCart||parseInt(c.clicks)||0;
+      return`<tr>
+        <td style="font-weight:600;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${campName}">${campName}</td>
+        <td>${z(viewContent)}</td>
+        <td>${z(addToCart)}</td>
+        <td>${z(checkout)}</td>
+        <td>${z(paymentInfo)}</td>
+        <td>${z(shippingInfo)}</td>
+        <td>${z(pixelPurch)}</td>
+        <td>${z(onsitePurch)}</td>
+        <td>${pct(totalPurch, base)}</td>
+      </tr>`;
+    }).join('') : '<tr><td colspan="9" class="empty">Sin datos</td></tr>';
+  }
+
+  // ── EMBUDO MENSAJERÍA por campaña ──────────────────────────
+  const msgFunnelEl = document.getElementById('msgFunnelBody');
+  if(msgFunnelEl){
+    const z = v => v>0?`<strong>${fn(v)}</strong>`:`<span style="color:var(--border2)">—</span>`;
+    const pct = (a,b) => b>0?`<span style="color:${(a/b)>.5?'var(--success)':'var(--amber)'};font-size:12px">${((a/b)*100).toFixed(1)}%</span>`:`<span style="color:var(--border2)">—</span>`;
+    const msgCamps = camps.filter(camp=>safeC(camp).messagingConn>0);
+    msgFunnelEl.innerHTML = msgCamps.length
+      ? msgCamps.map(camp=>{
+          const c=safeC(camp);
+          return`<tr>
+            <td style="font-weight:600;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${c.name||c.campaign_name||''}">${c.name||c.campaign_name||'—'}</td>
+            <td>${z(c.messagingConn)}</td>
+            <td>${z(c.messagingFirstReply)}</td>
+            <td>${z(c.msgDepth2)}</td>
+            <td>${z(c.msgDepth3)}</td>
+            <td>${z(c.msgDepth5)}</td>
+            <td>${pct(c.msgDepth2, c.messagingConn)}</td>
+            <td>${pct(c.msgDepth5, c.messagingConn)}</td>
+          </tr>`;
+        }).join('')
+      : '<tr><td colspan="8" style="text-align:center;padding:1rem;color:var(--muted);font-size:13px">Sin campañas con mensajería en este período</td></tr>';
+  }
+
+  // ── CURVA DE RETENCIÓN VIDEO por campaña ───────────────────
+  const videoFunnelEl = document.getElementById('videoFunnelBody');
+  if(videoFunnelEl){
+    const z = v => v>0?`<strong>${fn(v)}</strong>`:`<span style="color:var(--border2)">—</span>`;
+    const ret = (thru, v3s) => {
+      if(!v3s||!thru) return `<span style="color:var(--border2)">—</span>`;
+      const p=(thru/v3s)*100;
+      const col=p>30?'var(--success)':p>15?'var(--amber)':'var(--danger)';
+      return`<span style="color:${col};font-weight:600">${p.toFixed(1)}%</span>`;
+    };
+    const vidCamps = camps.filter(camp=>{const c=safeC(camp);return (c.videoViews3s||c.videoViews)>0;});
+    videoFunnelEl.innerHTML = vidCamps.length
+      ? vidCamps.map(camp=>{
+          const c=safeC(camp);
+          const v3s = c.videoViews3s||c.videoViews;
+          const avgTime = c.videoAvgTime||camp.videoAvgTime||0;
+          return`<tr>
+            <td style="font-weight:600;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${c.name||c.campaign_name||''}">${c.name||c.campaign_name||'—'}</td>
+            <td>${z(v3s)}</td>
+            <td>${z(c.videoViews10s)}</td>
+            <td>${z(c.videoViews15s)}</td>
+            <td>${z(c.videoViews30s)}</td>
+            <td>${z(c.videoP25)}</td>
+            <td>${z(c.videoP50)}</td>
+            <td>${z(c.videoP75)}</td>
+            <td>${z(c.videoP95)}</td>
+            <td>${z(c.thruPlays)}</td>
+            <td>${ret(c.thruPlays, v3s)}</td>
+            <td>${avgTime>0?`<strong>${avgTime.toFixed(1)}s</strong>`:'<span style="color:var(--border2)">—</span>'}</td>
+          </tr>`;
+        }).join('')
+      : '<tr><td colspan="12" style="text-align:center;padding:1rem;color:var(--muted);font-size:13px">Sin campañas con video en este período</td></tr>';
+  }
+
+  // ── CONTEXTO ANDROMEDA ────────────────────────────────────
+  const ctxCard = document.getElementById('andromedaCtx');
+  const ctxBody = document.getElementById('andromedaCtxBody');
+  if(ctxCard && ctxBody && camps.length){
+    const activeCamps = camps.filter(c=>(c.status||'').toUpperCase()==='ACTIVE');
+    const learningCamps = activeCamps.filter(c=>c.phase==='learning'||c.phase==='learning_limited');
+    const fatigueCamps  = activeCamps.filter(c=>c.phase==='fatigue');
+    const learningPct   = activeCamps.length>0 ? Math.round((learningCamps.length/activeCamps.length)*100) : 0;
+    const totalBudget   = clientCfg.kpi_targets?.target_budget || 0;
+    const budgetPct     = totalBudget>0 ? Math.round((acc.spend/totalBudget)*100) : 0;
+    const avgFreq       = activeCamps.length>0 ? (activeCamps.reduce((s,c)=>s+(c.frequency||0),0)/activeCamps.length).toFixed(1) : '—';
+    const freqColor     = parseFloat(avgFreq)>3.5?'var(--danger)':parseFloat(avgFreq)>2.5?'var(--amber)':'var(--success)';
+    const learnColor    = learningPct>60?'var(--amber)':learningPct>80?'var(--danger)':'var(--success)';
+
+    ctxBody.innerHTML = [
+      {l:'Campañas activas', v:activeCamps.length, c:'var(--text)'},
+      {l:'En aprendizaje', v:learningCamps.length+' ('+learningPct+'%)', c:learnColor},
+      {l:'En fatiga', v:fatigueCamps.length, c:fatigueCamps.length>0?'var(--danger)':'var(--success)'},
+      {l:'Frec. promedio', v:avgFreq, c:freqColor},
+      totalBudget>0 ? {l:'Presupuesto ejec.', v:budgetPct+'%', c:budgetPct>95?'var(--danger)':budgetPct>80?'var(--amber)':'var(--success)'} : null,
+    ].filter(Boolean).map(x=>`
+      <div style="background:var(--s2);border:1px solid var(--border2);border-radius:var(--r);padding:10px 13px">
+        <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">${x.l}</div>
+        <div style="font-size:1.3rem;font-weight:700;color:${x.c}">${x.v}</div>
+      </div>`).join('');
+    ctxCard.style.display='block';
+  }
+
+  // renderCampsTable definida como función global abajo
+
+  // Tabla adsets
+  console.log('[renderDash] ✓ embudos');
+  document.getElementById('adsetsBody').innerHTML = adsets.length ? adsets.map(a=>{
+    const ph=a.phase;
+    const phCls=ph==='stable'?'pp-s':ph==='fatigue'?'pp-f':ph==='learning'?'pp-l':'pp-u';
+    const phLbl=ph==='stable'?'Estable':ph==='fatigue'?'Fatiga':ph==='learning'?'Aprendizaje':'—';
+    const fatigueColor=(a.fatigueScore||0)>=75?'var(--danger)':(a.fatigueScore||0)>=50?'var(--amber)':'var(--success)';
+    const cpc = a.spend>0&&a.clicks>0 ? fc(a.spend/a.clicks) : '—';
+    return`<tr>
+      <td style="font-weight:500;max-width:170px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${a.name}">${a.name}</td>
+      <td style="color:var(--muted);font-size:12px;max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${a.campaignName||'—'}</td>
+      <td><span class="pp ${phCls}">${phLbl}</span></td>
+      <td style="color:${fatigueColor};font-weight:600">${a.fatigueScore||0}</td>
+      <td>${fc(a.spend)}</td>
+      <td>${fn(a.impressions||0)}</td>
+      <td>${fn(a.clicks||0)}</td>
+      <td>${cpc}</td>
+      <td style="color:${(a.ctr||0)>2?'var(--success)':(a.ctr||0)>1?'var(--text)':'var(--danger)'}">${(a.ctr||0).toFixed(2)}%</td>
+      <td>${fc(a.cpm)}</td>
+      <td style="color:${(a.frequency||0)>3.5?'var(--danger)':(a.frequency||0)>2.5?'var(--amber)':'var(--text)'}">${(a.frequency||0).toFixed(1)}</td>
+      <td>${a.messagingConn||0}</td>
+      <td>${a.leads||0}</td>
+      <td style="color:var(--success);font-weight:${(a.purchases||0)>0?700:400}">${a.purchases||0}</td>
+    </tr>`;
+  }).join('') : '<tr><td colspan="14" class="empty">Sin datos de conjuntos</td></tr>';
+  console.log('[renderDash] ✓ adsetsBody');
+
+
+  renderCampsTable(camps);
+
+  console.log('[renderDash] ✓ adsets/camps');
+  // ── TABLA RESULTADOS DINÁMICA ─────────────────────────────
+  // Nombres amigables para action types conocidos
+  const ACTION_LABELS = {
+    'offsite_conversion.fb_pixel_purchase':            'Compras (pixel)',
+    'offsite_conversion.fb_pixel_add_to_cart':         'Al carrito (pixel)',
+    'offsite_conversion.fb_pixel_initiate_checkout':   'Checkout (pixel)',
+    'offsite_conversion.fb_pixel_view_content':        'V. contenido',
+    'offsite_conversion.fb_pixel_search':              'Búsqueda',
+    'offsite_conversion.fb_pixel_add_to_wishlist':     'Wishlist',
+    'offsite_conversion.fb_pixel_add_payment_info':    'Info de pago',
+    'offsite_conversion.fb_pixel_complete_registration':'Registros',
+    'offsite_conversion.fb_pixel_lead':                'Leads (pixel)',
+    'offsite_conversion.fb_pixel_custom':              'Conv. custom',
+    'onsite_conversion.purchase':                      'Compras (onsite)',
+    'onsite_conversion.add_to_cart':                   'Al carrito (onsite)',
+    'onsite_conversion.checkout':                      'Checkout (onsite)',
+    'onsite_conversion.donate':                        'Donaciones',
+    'onsite_conversion.flow_complete':                 'Flujo completado',
+    'onsite_conversion.post_save':                     'Guardados',
+    'onsite_conversion.lead_grouped':                  'Leads (form.)',
+    'onsite_conversion.total_messaging_connection':    'Conexiones msg.',
+    'onsite_conversion.messaging_first_reply':         '1ras resp.',
+    'onsite_conversion.messaging_conversation_started_7d': 'Conv. iniciadas',
+    'onsite_conversion.messaging_user_depth_2_message_send': 'Msg depth 2',
+    'onsite_conversion.messaging_user_depth_3_message_send': 'Msg depth 3',
+    'onsite_conversion.messaging_user_depth_5_message_send': 'Msg depth 5',
+    'onsite_conversion.messaging_block':               'Msg bloqueados',
+    'onsite_conversion.messaging_user_subscribed':     'Suscripciones msg.',
+    'lead':                                            'Leads',
+    'leadgen_grouped':                                 'Leads (form. nativo)',
+    'link_click':                                      'Clics enlace',
+    'outbound_click':                                  'Clics salida',
+    'landing_page_view':                               'V. landing',
+    'video_view':                                      'Video views (3s)',
+    'video_view_3s':                                   'Video 3s',
+    'video_view_10s':                                  'Video 10s',
+    'video_view_15s':                                  'Video 15s',
+    'video_view_30s':                                  'Video 30s',
+    'video_p25_watched_actions':                       'Video 25%',
+    'video_p50_watched_actions':                       'Video 50%',
+    'video_p75_watched_actions':                       'Video 75%',
+    'video_p95_watched_actions':                       'Video 95%',
+    'video_p100_watched_actions':                      'ThruPlays (100%)',
+    'post_engagement':                                 'Post engagement',
+    'page_engagement':                                 'Page engagement',
+    'post_reaction':                                   'Reacciones',
+    'like':                                            'Me gusta / Seg.',
+    'comment':                                         'Comentarios',
+    'post':                                            'Compartidos (post)',
+    'share':                                           'Compartidos',
+    'photo_view':                                      'V. fotos',
+    'rsvp':                                            'Resp. eventos',
+    'checkin':                                         'Check-ins',
+    'follow':                                          'Nuevos seg. FB',
+    'onsite_conversion.follow':                        'Nuevos seg. IG',
+    'ig_profile_visit':                                'Visitas perfil IG',
+    'onsite_conversion.instagram_profile_visit':       'Visitas perfil IG',
+    'donate_total':                                    'Donaciones (total)',
+    'donate_website':                                  'Donaciones (web)',
+    'donate_on_facebook':                              'Donaciones (FB)',
+    'contact_total':                                   'Contactos',
+    'contact_website':                                 'Contactos (web)',
+    'click_to_call_call_confirm':                      'Llamadas confirmadas',
+    'click_to_call_native_call_placed':                'Llamadas realizadas',
+    'omni_purchase':                                   'Compras (omni)',
+    'omni_add_to_cart':                                'Al carrito (omni)',
+    'omni_complete_registration':                      'Registros (omni)',
+    'omni_view_content':                               'V. contenido (omni)',
+    'omni_search':                                     'Búsquedas (omni)',
+    'omni_initiated_checkout':                         'Checkout (omni)',
+    'find_location_total':                             'Búsq. ubicación',
+    'schedule_total':                                  'Citas agendadas',
+    'schedule_website':                                'Citas (web)',
+    'start_trial_total':                               'Pruebas iniciadas',
+    'submit_application_total':                        'Aplicaciones',
+    'submit_application_on_facebook':                  'Aplicaciones (FB)',
+    'subscribe_total':                                 'Suscripciones',
+    'customize_product_total':                         'Productos custom.',
+  };
+
+  // Recolectar todos los action types únicos que tienen datos en alguna campaña únicos que tienen datos en alguna campaña
+  const allActionTypes = new Map(); // type -> label
+  camps.forEach(camp => {
+    const actions = camp._actions || [];
+    actions.forEach(a => {
+      if(parseInt(a.value) > 0 && !allActionTypes.has(a.action_type)) {
+        allActionTypes.set(a.action_type, ACTION_LABELS[a.action_type] || a.action_type);
+      }
+    });
+  });
+
+  const resultsHead = document.getElementById('resultsHead');
+  const resultsEl   = document.getElementById('resultsBody');
+  if(resultsHead && resultsEl){
+    if(camps.length && allActionTypes.size > 0){
+      // Generar encabezados dinámicos
+      const types = Array.from(allActionTypes.keys());
+      resultsHead.innerHTML = '<tr>' +
+        '<th>Campaña</th><th>Objetivo</th>' +
+        types.map(t => `<th>${allActionTypes.get(t)}</th>`).join('') +
+        '<th>Compras</th><th>ROAS</th><th>Costo/compra</th>' +
+        '</tr>';
+
+      // Generar filas
+      const z = v => v>0 ? `<strong>${fn(v)}</strong>` : `<span style="color:var(--border2)">—</span>`;
+      resultsEl.innerHTML = camps.map(camp => {
+        const objLabel = OBJ_LABEL[camp.objective] || camp.objective || '—';
+        const actMap = {};
+        (camp._actions || []).forEach(a => { actMap[a.action_type] = parseInt(a.value) || 0; });
+        const c2 = safeC(camp);
+        const roas2 = c2.roas ? c2.roas.toFixed(2)+'x' : '—';
+        const cpa2  = c2.spend>0&&c2.purchases>0 ? fc(c2.spend/c2.purchases) : '—';
+        return `<tr>
+          <td style="font-weight:600;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${camp.name||''}">${camp.name||'—'}</td>
+          <td><span style="font-size:11px;background:var(--s2);padding:2px 7px;border-radius:10px;color:var(--muted2)">${objLabel}</span></td>
+          ${types.map(t => `<td>${z(actMap[t] || 0)}</td>`).join('')}
+          <td style="color:var(--success);font-weight:700">${z(c2.purchases||0)}</td>
+          <td style="color:${c2.roas&&c2.roas>=2?'var(--success)':c2.roas&&c2.roas>=1?'var(--amber)':'var(--danger)'}">${roas2}</td>
+          <td style="color:var(--teal)">${cpa2}</td>
+        </tr>`;
+      }).join('');
+    } else if(camps.length && allActionTypes.size === 0){
+      // Hay campañas pero sin _actions (snapshot viejo) — usar safeC como fallback
+      const fallbackTypes = [
+        ['purchases','Compras'],['leads','Leads'],['leadgenLeads','Leads form.'],
+        ['messagingConn','Mensajes'],['messagingFirstReply','1ras resp.'],
+        ['landingPageViews','V.Landing'],['addToCart','Al carrito'],
+        ['initiateCheckout','Checkout'],['linkClicks','Clics'],
+        ['postEngagement','Engagement'],['videoViews','Video views'],
+        ['postShares','Compartidos'],['postSaves','Guardados'],
+      ];
+      resultsHead.innerHTML = '<tr><th>Campaña</th><th>Objetivo</th>' +
+        fallbackTypes.map(([,l])=>`<th>${l}</th>`).join('') +
+        '<th>Compras</th><th>ROAS</th><th>Costo/compra</th></tr>';
+      const z = v => v>0?`<strong>${fn(v)}</strong>`:`<span style="color:var(--border2)">—</span>`;
+      resultsEl.innerHTML = camps.map(camp => {
+        const c = safeC(camp);
+        const objLabel = OBJ_LABEL[c.objective]||c.objective||'—';
+        const roasF = c.roas ? c.roas.toFixed(2)+'x' : '—';
+        const cpaF  = c.spend>0&&c.purchases>0 ? fc(c.spend/c.purchases) : '—';
+        return `<tr>
+          <td style="font-weight:600;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${c.name||''}">${c.name||'—'}</td>
+          <td><span style="font-size:11px;background:var(--s2);padding:2px 7px;border-radius:10px;color:var(--muted2)">${objLabel}</span></td>
+          ${fallbackTypes.map(([f])=>`<td>${z(c[f]||0)}</td>`).join('')}
+          <td style="color:var(--success);font-weight:700">${z(c.purchases||0)}</td>
+          <td style="color:${c.roas&&c.roas>=2?'var(--success)':c.roas&&c.roas>=1?'var(--amber)':'var(--danger)'}">${roasF}</td>
+          <td style="color:var(--teal)">${cpaF}</td>
+        </tr>`;
+      }).join('');
+    } else {
+      resultsHead.innerHTML = '<tr><th>Campaña</th><th>Sin datos</th></tr>';
+      resultsEl.innerHTML = '<tr><td colspan="2" class="empty">Sin datos de campañas</td></tr>';
+    }
+  }
+
+  console.log('[renderDash] ✓ resultados');
+  // Anuncios — tabla mejorada
+  document.getElementById('adsBody').innerHTML=ads.length?ads.slice(0,15).map(a=>{
+    const fatigueColor=a.fatigueScore>=75?'var(--danger)':a.fatigueScore>=50?'var(--amber)':'var(--success)';
+    const cpc = a.spend>0&&a.clicks>0 ? fc(a.spend/a.clicks) : '—';
+    return`<tr>
+      <td style="font-weight:500;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${a.name}">${a.name}</td>
+      <td style="color:var(--muted);font-size:12px;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${a.adsetName||''}">${a.adsetName||'—'}</td>
+      <td style="color:var(--muted);font-size:12px;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${a.campaignName||''}">${a.campaignName||'—'}</td>
+      <td>${fc(a.spend)}</td>
+      <td>${fn(a.impressions||0)}</td>
+      <td>${fn(a.clicks||0)}</td>
+      <td>${cpc}</td>
+      <td style="color:${(a.ctr||0)>2?'var(--success)':(a.ctr||0)>1?'var(--text)':'var(--danger)'};font-weight:600">${(a.ctr||0).toFixed(2)}%</td>
+      <td style="color:${(a.frequency||0)>3.5?'var(--danger)':(a.frequency||0)>2.5?'var(--amber)':'var(--text)'}">${(a.frequency||0).toFixed(1)}</td>
+      <td style="color:${fatigueColor};font-weight:600">${a.fatigueScore||0}</td>
+      <td>${a.messagingConn||0}</td>
+      <td>${a.postShares||0}</td>
+      <td>${a.postSaves||0}</td>
+    </tr>`;
+  }).join(''):'<tr><td colspan="13" class="empty">Sin anuncios</td></tr>';
+
+  console.log('[renderDash] ✓ ads');
+  // Análisis del agente — se muestra solo cuando el usuario presiona "Ejecutar análisis"
+}
+
+function renderCampsTable(campsData){
+  const campsBodyEl = document.getElementById('campsBody');
+  if(!campsBodyEl || !campsData) return;
+  campsBodyEl.innerHTML = campsData.length ? campsData.map(camp=>{
+    const c = safeC(camp);
+    const ph=c.phase;
+    const phCls=ph==='stable'?'pp-s':ph==='fatigue'?'pp-f':(ph==='learning'||ph==='learning_limited')?'pp-l':'pp-u';
+    const phLbl=ph==='stable'?'Estable':ph==='fatigue'?'Fatiga':ph==='learning'?'Aprendizaje':ph==='learning_limited'?'Apr. Limitado':'—';
+    const st=(c.status||'').toUpperCase();
+    const isActive=st==='ACTIVE';
+    const stColor=isActive?'var(--success)':st==='PAUSED'?'var(--muted)':'var(--danger)';
+    const stLabel=isActive?'● Activa':st==='PAUSED'?'◌ Pausada':st==='DELETED'?'✕ Eliminada':st||'—';
+    const objLabel=OBJ_LABEL[c.objective]||c.objective||'—';
+    const cpc = c.spend>0&&c.clicks>0 ? fc(c.spend/c.clicks) : '—';
+    const freqColor=(c.frequency||0)>3.5?'var(--danger)':(c.frequency||0)>2.5?'var(--amber)':'var(--text)';
+    const obj=(c.objective||'').toUpperCase();
+    let costPerResult='—';
+    if(c.spend>0){
+      if(obj.includes('MESSAGE') && c.messagingConn>0) costPerResult=fc(c.spend/c.messagingConn);
+      else if((obj.includes('LEAD')||obj.includes('LEAD_GEN')) && (c.leads+c.leadgenLeads)>0) costPerResult=fc(c.spend/(c.leads+c.leadgenLeads));
+      else if((obj.includes('SALE')||obj.includes('CONV')) && c.purchases>0) costPerResult=fc(c.spend/c.purchases);
+      else if(obj.includes('TRAFFIC') && c.landingPageViews>0) costPerResult=fc(c.spend/c.landingPageViews);
+      else if(obj.includes('VIDEO') && c.thruPlays>0) costPerResult=fc(c.spend/c.thruPlays);
+      else if(obj.includes('ENGAGE') && c.postEngagement>0) costPerResult=fc(c.spend/c.postEngagement);
+    }
+    return `<tr>
+      <td style="font-weight:500;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${c.name}">${c.name}</td>
+      <td><span style="font-size:11px;background:var(--s2);padding:2px 7px;border-radius:10px;color:var(--muted2)">${objLabel}</span></td>
+      <td><span style="color:${stColor}">${stLabel}</span></td>
+      <td><span class="pp ${phCls}">${phLbl}</span></td>
+      <td>${getMainResult(c)}</td>
+      <td style="font-weight:600;color:var(--teal)">${costPerResult}</td>
+      <td>${fc(c.spend)}</td>
+      <td>${fn(c.impressions||0)}</td>
+      <td>${fn(c.clicks||0)}</td>
+      <td>${cpc}</td>
+      <td style="color:${(c.ctr||0)>2?'var(--success)':(c.ctr||0)>1?'var(--text)':'var(--danger)'}">${(c.ctr||0).toFixed(2)}%</td>
+      <td>${fc(c.cpm)}</td>
+      <td style="color:${freqColor};font-weight:${(c.frequency||0)>2.5?'700':'400'}">${(c.frequency||0).toFixed(1)}</td>
+    </tr>`;
+  }).join('') : '<tr><td colspan="13" class="empty">Sin datos de campañas</td></tr>';
+}
+
+function renderPeriod(d, period){
+  const lbl    = period==='14d' ? 'Últimos 14 días' : period==='month' ? 'Este mes' : period==='yesterday' ? 'Ayer' : 'Últimos 7 días';
+  // d.account ya viene procesado por calcKpis desde el server — no necesita parseRaw
+  const acc    = d.account || {};
+  const camps  = d.campaigns || [];
+  const adsets = d.adsets    || [];
+  const ads    = d.ads       || [];
+  const kpis = clientCfg.kpi_targets || {};
+
+  const kpiDefs = [
+    {id:'Gasto',       v:fc(acc.spend||0),                         ok:null},
+    {id:'ROAS',        v:acc.roas?acc.roas.toFixed(2)+'x':'—',     ok:kpis.target_roas?(acc.roas||0)>=kpis.target_roas:null},
+    {id:'CTR',         v:(acc.ctr||0).toFixed(2)+'%',              ok:kpis.target_ctr?(acc.ctr||0)>=kpis.target_ctr:null},
+    {id:'CPM',         v:fc(acc.cpm||0),                           ok:kpis.target_cpm?(acc.cpm||0)<=kpis.target_cpm:null},
+    {id:'Frecuencia',  v:(acc.frequency||0).toFixed(1),            ok:kpis.target_frequency?(acc.frequency||0)<=kpis.target_frequency:null},
+    {id:'Impresiones', v:fn(acc.impressions||0),                   ok:null},
+    {id:'Alcance',     v:fn(acc.reach||0),                         ok:null},
+    {id:'Clics',       v:fn(acc.clicks||0),                        ok:null},
+    {id:'Mensajes',    v:fn(acc.messagingConn||0),                 ok:kpis.target_msgconn?(acc.messagingConn||0)>=kpis.target_msgconn:null},
+    {id:'Leads',       v:fn(acc.leads||0),                         ok:null},
+    {id:'Compras',     v:fn(acc.purchases||0),                     ok:null},
+    {id:'CPL',         v:acc.cpl?fc(acc.cpl):'—',                  ok:kpis.target_cpl?(acc.cpl||0)<=kpis.target_cpl:null},
+    {id:'Costo x msg', v:acc.cpmsg?fc(acc.cpmsg):'—',              ok:kpis.target_cpmsg?(acc.cpmsg||0)<=kpis.target_cpmsg:null},
+    {id:'V.Landing',   v:fn(acc.landingPageViews||0),              ok:null},
+    {id:'Al carrito',  v:fn(acc.addToCart||0),                     ok:null},
+    {id:'Engagement',  v:fn(acc.postEngagement||0),                ok:null},
+    {id:'Video views', v:fn(acc.videoViews||0),                    ok:null},
+    {id:'Compartidos', v:fn(acc.postShares||0),                    ok:null},
+    {id:'Guardados',   v:fn(acc.postSaves||0),                     ok:null},
+    {id:'Seg. FB',     v:fn(acc.newFollowersPage||0),              ok:null},
+    {id:'Seg. IG',     v:fn(acc.newFollowersIG||0),                ok:null},
+  ];
+  document.getElementById('kpiCards').innerHTML = kpiDefs
+    .filter(k=>!hiddenMetrics.includes(k.id))
+    .map(k=>mkKpi(k.id, k.v, k.ok, ''))
+    .join('');
+
+  fillMg('mg-base',[
+    ['Impresiones',fn(acc.impressions)],['Alcance',fn(acc.reach)],
+    ['Clics',fn(acc.clicks)],['Clics únicos',fn(acc.uniqueClicks)],
+    ['CTR único',(acc.uniqueCtr||0).toFixed(2)+'%'],
+    ['CPM',fc(acc.cpm)],['Frecuencia',(acc.frequency||0).toFixed(1)],
+    ['ROAS',acc.roas?acc.roas.toFixed(2)+'x':'—'],['Gasto',fc(acc.spend)],
+  ]);
+  fillMg('mg-conv',[
+    ['Compras',fn(acc.purchases)],['Valor compras',fc(acc.purchaseValue)],
+    ['Leads',fn(acc.leads)],['CPL',acc.cpl?fc(acc.cpl):'—'],
+    ['Al carrito',fn(acc.addToCart)],['Checkout',fn(acc.initiateCheckout)],
+    ['V. landing',fn(acc.landingPageViews)],['Donaciones',fn(acc.donations)],
+  ]);
+  fillMg('mg-pixel',[
+    ['V. Contenido',fn(acc.pixelViewContent)],['Búsqueda',fn(acc.pixelSearch)],
+    ['Al carrito',fn(acc.pixelAddToCart)],['Wishlist',fn(acc.pixelWishlist)],
+    ['Checkout',fn(acc.pixelCheckout)],['Compras',fn(acc.pixelPurchase)],
+    ['Leads pixel',fn(acc.pixelLead)],['Registros',fn(acc.pixelReg)],
+  ]);
+  fillMg('mg-msg',[
+    ['Conexiones',fn(acc.messagingConn)],['Costo x msg',acc.cpmsg?fc(acc.cpmsg):'—'],
+    ['1ras resp.',fn(acc.messagingFirstReply)],
+    ['Depth 2',fn(acc.msgDepth2)],['Depth 3',fn(acc.msgDepth3)],['Depth 5',fn(acc.msgDepth5)],
+  ]);
+  fillMg('mg-video',[
+    ['3s',fn(acc.videoViews3s||acc.videoViews)],['10s',fn(acc.videoViews10s)],
+    ['25%',fn(acc.videoP25)],['50%',fn(acc.videoP50)],
+    ['75%',fn(acc.videoP75)],['95%',fn(acc.videoP95)],['ThruPlays',fn(acc.thruPlays)],
+  ]);
+  fillMg('mg-eng',[
+    ['Post engagement',fn(acc.postEngagement)],['Reacciones',fn(acc.postReactions)],
+    ['Me gusta',fn(acc.postLikes)],['Comentarios',fn(acc.postComments)],
+    ['Compartidos',fn(acc.postShares)],['Guardados',fn(acc.postSaves)],
+    ['Nuevos seg. FB',fn(acc.newFollowersPage)],['Nuevos seg. IG',fn(acc.newFollowersIG)],
+    ['Visitas perfil IG',fn(acc.igProfileVisits)],
+  ]);
+
+  // Actualizar título del período
+  const upd = document.getElementById('lastUpd');
+  if(upd) upd.textContent = lbl + ' — ' + upd.textContent.replace(/^.+?— /,'');
+
+  // Actualizar Resumen Campañas activas con datos del período seleccionado
+  if(d.campaigns && d.campaigns.length){
+    const ctxCard = document.getElementById('andromedaCtx');
+    const ctxBody = document.getElementById('andromedaCtxBody');
+    if(ctxCard && ctxBody){
+      const camps = d.campaigns;
+      const activeCamps   = camps.filter(c=>(c.status||'').toUpperCase()==='ACTIVE');
+      const learningCamps = activeCamps.filter(c=>c.phase==='learning'||c.phase==='learning_limited');
+      const fatigueCamps  = activeCamps.filter(c=>c.phase==='fatigue');
+      const learningPct   = activeCamps.length>0 ? Math.round((learningCamps.length/activeCamps.length)*100) : 0;
+      const totalBudget   = clientCfg.kpi_targets?.target_budget || 0;
+      const budgetPct     = totalBudget>0 ? Math.round((acc.spend/totalBudget)*100) : 0;
+      const avgFreq       = activeCamps.length>0 ? (activeCamps.reduce((s,c)=>s+(c.frequency||0),0)/activeCamps.length).toFixed(1) : '—';
+      const freqColor     = parseFloat(avgFreq)>3.5?'var(--danger)':parseFloat(avgFreq)>2.5?'var(--amber)':'var(--success)';
+      const learnColor    = learningPct>60?'var(--amber)':learningPct>80?'var(--danger)':'var(--success)';
+      ctxBody.innerHTML = [
+        {l:'Campañas activas', v:activeCamps.length, c:'var(--text)'},
+        {l:'En aprendizaje', v:learningCamps.length+' ('+learningPct+'%)', c:learnColor},
+        {l:'En fatiga', v:fatigueCamps.length, c:fatigueCamps.length>0?'var(--danger)':'var(--success)'},
+        {l:'Frec. promedio', v:avgFreq, c:freqColor},
+        totalBudget>0 ? {l:'Presupuesto ejec.', v:budgetPct+'%', c:budgetPct>95?'var(--danger)':budgetPct>80?'var(--amber)':'var(--success)'} : null,
+      ].filter(Boolean).map(x=>`
+        <div style="background:var(--s2);border:1px solid var(--border2);border-radius:var(--r);padding:10px 13px">
+          <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">${x.l}</div>
+          <div style="font-size:1.3rem;font-weight:700;color:${x.c}">${x.v}</div>
+        </div>`).join('');
+      ctxCard.style.display='block';
+
+      // Actualizar también la tabla de campañas con el período activo
+      const campsBody = document.getElementById('campsBody');
+      if(campsBody) renderCampsTable(camps);
+    }
+  }
+
+  // ── ADSETS ────────────────────────────────────────────────
+  if(adsets.length){
+    const ab = document.getElementById('adsetsBody');
+    if(ab) ab.innerHTML = adsets.map(a=>{
+      const ph=a.phase;
+      const phCls=ph==='stable'?'pp-s':ph==='fatigue'?'pp-f':ph==='learning'?'pp-l':'pp-u';
+      const phLbl=ph==='stable'?'Estable':ph==='fatigue'?'Fatiga':ph==='learning'?'Aprendizaje':'—';
+      const fatigueColor=(a.fatigueScore||0)>=75?'var(--danger)':(a.fatigueScore||0)>=50?'var(--amber)':'var(--success)';
+      const cpc = a.spend>0&&a.clicks>0 ? fc(a.spend/a.clicks) : '—';
+      return `<tr>
+        <td style="font-weight:500;max-width:170px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${a.name||''}">${a.name||'—'}</td>
+        <td style="color:var(--muted);font-size:12px;max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${a.campaignName||'—'}</td>
+        <td><span class="pp ${phCls}">${phLbl}</span></td>
+        <td style="color:${fatigueColor};font-weight:600">${a.fatigueScore||0}</td>
+        <td>${fc(a.spend)}</td>
+        <td>${fn(a.impressions||0)}</td>
+        <td>${fn(a.clicks||0)}</td>
+        <td>${cpc}</td>
+        <td style="color:${(a.ctr||0)>2?'var(--success)':(a.ctr||0)>1?'var(--text)':'var(--danger)'}">${(a.ctr||0).toFixed(2)}%</td>
+        <td>${fc(a.cpm)}</td>
+        <td style="color:${(a.frequency||0)>3.5?'var(--danger)':(a.frequency||0)>2.5?'var(--amber)':'var(--text)'}">${(a.frequency||0).toFixed(1)}</td>
+        <td>${a.messagingConn||0}</td>
+        <td>${a.leads||0}</td>
+        <td style="color:var(--success);font-weight:${(a.purchases||0)>0?700:400}">${a.purchases||0}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  // ── ADS ───────────────────────────────────────────────────
+  if(ads.length){
+    const adsEl = document.getElementById('adsBody');
+    if(adsEl) adsEl.innerHTML = ads.slice(0,15).map(a=>{
+      const fatigueColor=(a.fatigueScore||0)>=75?'var(--danger)':(a.fatigueScore||0)>=50?'var(--amber)':'var(--success)';
+      const cpc = a.spend>0&&a.clicks>0 ? fc(a.spend/a.clicks) : '—';
+      return `<tr>
+        <td style="font-weight:500;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${a.name||''}">${a.name||'—'}</td>
+        <td style="color:var(--muted);font-size:12px;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${a.adsetName||''}">${a.adsetName||'—'}</td>
+        <td style="color:var(--muted);font-size:12px;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${a.campaignName||''}">${a.campaignName||'—'}</td>
+        <td>${fc(a.spend)}</td>
+        <td>${fn(a.impressions||0)}</td>
+        <td>${fn(a.clicks||0)}</td>
+        <td>${cpc}</td>
+        <td style="color:${(a.ctr||0)>2?'var(--success)':(a.ctr||0)>1?'var(--text)':'var(--danger)'};font-weight:600">${(a.ctr||0).toFixed(2)}%</td>
+        <td style="color:${(a.frequency||0)>3.5?'var(--danger)':(a.frequency||0)>2.5?'var(--amber)':'var(--text)'}">${(a.frequency||0).toFixed(1)}</td>
+        <td style="color:${fatigueColor};font-weight:600">${a.fatigueScore||0}</td>
+        <td>${a.messagingConn||0}</td>
+        <td>${a.postShares||0}</td>
+        <td>${a.postSaves||0}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  // ── RESULTADOS DETALLE POR CAMPAÑA ────────────────────────
+  if(camps.length){
+    const resultsEl   = document.getElementById('resultsBody');
+    const resultsHead = document.getElementById('resultsHead');
+    if(resultsEl && resultsHead){
+      const profile = clientCfg?.profile || '';
+      renderResultsTable(camps, profile, resultsEl, resultsHead);
+    }
+  }
+
+  // ── EMBUDOS ───────────────────────────────────────────────
+  if(camps.length){
+    // Embudo conversión
+    renderFunnelVisual(camps, 'funnelVisual');
+    const funnelEl = document.getElementById('funnelBody');
+    if(funnelEl){
+      // Misma lógica que renderDash — leer de _actions para garantizar enteros
+      const ga2p = (camp, type) => {
+        if(camp._actions){
+          const a = camp._actions.find(a => a.action_type === type);
+          return a ? parseInt(a.value)||0 : 0;
+        }
+        const c = safeC(camp);
+        const map = {
+          'offsite_conversion.fb_pixel_view_content':      c.pixelViewContent||0,
+          'offsite_conversion.fb_pixel_add_to_cart':       c.pixelAddToCart||0,
+          'offsite_conversion.fb_pixel_initiate_checkout': c.pixelCheckout||c.initiateCheckout||0,
+          'offsite_conversion.fb_pixel_add_payment_info':  c.pixelPaymentInfo||0,
+          'offsite_conversion.fb_pixel_add_shipping_info': c.pixelShippingInfo||0,
+          'offsite_conversion.fb_pixel_purchase':          c.pixelPurchase||0,
+          'onsite_conversion.purchase':                    c.onsitePurchase||0,
+        };
+        return parseInt(map[type])||0;
+      };
+      const zF = v => v>0?`<strong>${fn(v)}</strong>`:`<span style="color:var(--border2)">—</span>`;
+      const pctF = (a,b) => b>0?`<span style="color:${(a/b)>=0.03?'var(--success)':(a/b)>=0.01?'var(--amber)':'var(--danger)'};font-size:12px">${((a/b)*100).toFixed(2)}%</span>`:`<span style="color:var(--border2)">—</span>`;
+      const funnelRows = camps.map(camp => {
+        const c = safeC(camp);
+        const campName = camp.name||camp.campaign_name||c.name||camp.campaignName||'—';
+        const viewContent  = ga2p(camp,'offsite_conversion.fb_pixel_view_content');
+        const addToCart    = ga2p(camp,'offsite_conversion.fb_pixel_add_to_cart');
+        const checkout     = ga2p(camp,'offsite_conversion.fb_pixel_initiate_checkout');
+        const paymentInfo  = ga2p(camp,'offsite_conversion.fb_pixel_add_payment_info');
+        const shippingInfo = ga2p(camp,'offsite_conversion.fb_pixel_add_shipping_info');
+        const pixelPurch   = ga2p(camp,'offsite_conversion.fb_pixel_purchase');
+        const onsitePurch  = ga2p(camp,'onsite_conversion.purchase');
+        const totalPurch   = pixelPurch||onsitePurch||parseInt(c.purchases)||0;
+        const base         = viewContent||addToCart||parseInt(c.clicks)||0;
+        if(!viewContent && !addToCart && !checkout && !totalPurch) return null;
+        return '<tr>' +
+          '<td style="font-weight:600;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + campName + '">' + campName + '</td>' +
+          '<td>' + zF(viewContent) + '</td>' +
+          '<td>' + zF(addToCart) + '</td>' +
+          '<td>' + zF(checkout) + '</td>' +
+          '<td>' + zF(paymentInfo) + '</td>' +
+          '<td>' + zF(shippingInfo) + '</td>' +
+          '<td>' + zF(pixelPurch) + '</td>' +
+          '<td>' + zF(onsitePurch) + '</td>' +
+          '<td>' + pctF(totalPurch, base) + '</td>' +
+          '</tr>';
+      }).filter(Boolean);
+      funnelEl.innerHTML = funnelRows.length ? funnelRows.join('') : '<tr><td colspan="9" class="empty">Sin datos de embudo en este período</td></tr>';
+    }
+    // Embudo mensajería
+    const msgFunnelEl = document.getElementById('msgFunnelBody');
+    if(msgFunnelEl){
+      const mCamps = camps.filter(c=>{const a=safeC(c);return (a.messagingConn||0)>0;});
+      const zM = v => v>0?`<strong>${fn(v)}</strong>`:`<span style="color:var(--border2)">—</span>`;
+      const pctM = (a,b) => b>0?`<span style="color:${(a/b)>.5?'var(--success)':'var(--amber)'};font-size:12px">${((a/b)*100).toFixed(1)}%</span>`:`<span style="color:var(--border2)">—</span>`;
+      msgFunnelEl.innerHTML = mCamps.length ? mCamps.map(camp=>{
+        const a=safeC(camp);
+        return `<tr>
+          <td style="font-weight:600;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${a.name||''}">${a.name||'—'}</td>
+          <td>${zM(a.messagingConn)}</td>
+          <td>${zM(a.messagingFirstReply)}</td>
+          <td>${zM(a.msgDepth2)}</td>
+          <td>${zM(a.msgDepth3)}</td>
+          <td>${zM(a.msgDepth5)}</td>
+          <td>${a.messagingConn>0?((a.msgDepth2/a.messagingConn)*100).toFixed(1)+'%':'—'}</td>
+          <td>${a.messagingConn>0?((a.msgDepth5/a.messagingConn)*100).toFixed(1)+'%':'—'}</td>
+        </tr>`;
+      }).join('') : '<tr><td colspan="8" class="empty">Sin datos de mensajería en este período</td></tr>';
+    }
+    // Video retención
+    const videoFunnelEl = document.getElementById('videoRetBody');
+    if(videoFunnelEl){
+      const vCamps = camps.filter(c=>{const a=safeC(c);return (a.videoViews||0)>0;});
+      videoFunnelEl.innerHTML = vCamps.length ? vCamps.map(camp=>{
+        const a=parseRaw(camp);
+        return `<tr>
+          <td style="font-weight:500;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${camp.campaign_name||'—'}</td>
+          <td>${fn(a.videoViews||0)}</td>
+          <td>${fn(a.videoViews10s||0)}</td>
+          <td>${fn(a.thruPlays||0)}</td>
+          <td>${fn(a.videoP25||0)}</td>
+          <td>${fn(a.videoP50||0)}</td>
+          <td>${fn(a.videoP75||0)}</td>
+          <td>${fn(a.videoP95||0)}</td>
+          <td>${a.videoViews>0?Math.round((a.thruPlays||0)/a.videoViews*100)+'%':'—'}</td>
+        </tr>`;
+      }).join('') : '<tr><td colspan="9" class="empty">Sin datos de video en este período</td></tr>';
+    }
+  }
+}
+
+
+function renderFunnelVisual(camps, targetId){
+  const el = document.getElementById(targetId);
+  if(!el || !camps.length) return;
+
+  const STEP_COLORS = ['#4361ee','#5352d4','#6344bb','#7c3aed'];
+  const STEPS = [
+    { key:'pixelViewContent', label:'Ver contenido',  icon:'👁' },
+    { key:'addToCart',        label:'Al carrito',     icon:'🛒' },
+    { key:'initiateCheckout', label:'Checkout',       icon:'💳' },
+    { key:'purchases',        label:'Compra',         icon:'✅' },
+  ];
+
+  // Filtrar campañas con datos de embudo
+  const fCamps = camps.filter(camp => {
+    const c = safeC(camp);
+    return (c.pixelViewContent||c.addToCart||c.initiateCheckout||c.purchases||0) > 0;
+  });
+
+  if(!fCamps.length){
+    el.innerHTML = '<div style="text-align:center;padding:1.5rem;color:var(--muted);font-size:13px">Sin datos de embudo en este período</div>';
+    return;
+  }
+
+  // ── SUMAR TODAS LAS CAMPAÑAS ──────────────────────────────
+  const totals = [0,0,0,0];
+  fCamps.forEach(camp => {
+    const c = safeC(camp);
+    totals[0] += parseInt(c.pixelViewContent || 0);
+    totals[1] += parseInt(c.addToCart        || 0);
+    totals[2] += parseInt(c.initiateCheckout || 0);
+    totals[3] += parseInt(c.purchases        || 0);
+  });
+
+  const maxVal  = Math.max(...totals, 1);
+  const topStep = totals.find(v => v > 0) || 1; // primer paso con datos
+
+  const stepsHtml = STEPS.map((step, i) => {
+    const val      = totals[i];
+    const prev     = i > 0 ? totals[i-1] : null;
+    const stepPct  = prev != null && prev > 0 ? ((val/prev)*100).toFixed(1) : null;
+    const totalPct = topStep > 0 && val > 0 ? ((val/topStep)*100).toFixed(1) : null;
+    const barW     = maxVal > 0 ? Math.max(15, Math.round((val/maxVal)*100)) : 15;
+    const isZero   = val === 0;
+    const pctColor = stepPct ? (parseFloat(stepPct)>=50?'var(--success)':parseFloat(stepPct)>=20?'var(--amber)':'var(--danger)') : 'var(--muted)';
+
+    const arrowHtml = i > 0 ? `
+      <div class="funnel-arrow">
+        <div class="funnel-arrow-ico">→</div>
+        <div class="funnel-arrow-pct" style="color:${pctColor}">${stepPct ? stepPct+'%' : '—'}</div>
+      </div>` : '';
+
+    // Barra proporcional al máximo, mínimo 15%
+    const barHeight = isZero ? 50 : 50 + Math.round((val/maxVal) * 60);
+
+    return `${arrowHtml}
+    <div class="funnel-step ${isZero?'funnel-zero':''}">
+      <div class="funnel-step-bar" style="background:${STEP_COLORS[i]};height:${barHeight}px;min-width:110px;max-width:140px">
+        <div class="funnel-step-label">${step.icon} ${step.label}</div>
+        <div class="funnel-step-value">${val > 0 ? fn(val) : '—'}</div>
+        ${totalPct && i > 0 ? `<div style="font-size:9px;color:rgba(255,255,255,.55);margin-top:2px">${totalPct}% del total</div>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+
+  // Métricas de resumen debajo del funnel
+  const convRate = totals[0] > 0 && totals[3] > 0 ? ((totals[3]/totals[0])*100).toFixed(2) : null;
+  const dropRate = totals[0] > 0 ? ((1 - totals[3]/totals[0])*100).toFixed(1) : null;
+
+  el.innerHTML = `
+    <div style="margin-bottom:1rem">
+      <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:.75rem;font-weight:700">
+        Total consolidado — ${fCamps.length} campaña${fCamps.length>1?'s':''}
+      </div>
+      <div class="funnel-steps">${stepsHtml}</div>
+    </div>
+    ${convRate ? `
+    <div style="display:flex;gap:1rem;flex-wrap:wrap;margin-top:.75rem">
+      <div style="background:var(--s2);border:1px solid var(--border2);border-radius:var(--r);padding:8px 14px;display:flex;align-items:center;gap:8px">
+        <span style="font-size:11px;color:var(--muted)">Conv. rate total</span>
+        <span style="font-size:15px;font-weight:800;color:var(--success)">${convRate}%</span>
+      </div>
+      <div style="background:var(--s2);border:1px solid var(--border2);border-radius:var(--r);padding:8px 14px;display:flex;align-items:center;gap:8px">
+        <span style="font-size:11px;color:var(--muted)">Drop total</span>
+        <span style="font-size:15px;font-weight:800;color:var(--danger)">${dropRate}%</span>
+      </div>
+      <div style="background:var(--s2);border:1px solid var(--border2);border-radius:var(--r);padding:8px 14px;display:flex;align-items:center;gap:8px">
+        <span style="font-size:11px;color:var(--muted)">Compras totales</span>
+        <span style="font-size:15px;font-weight:800;color:var(--text)">${fn(totals[3])}</span>
+      </div>
+    </div>` : ''}`;
+}
+
+function detectPhaseFromData(obj){
+  const ctr = parseFloat(obj.ctr||0);
+  const freq = parseFloat(obj.frequency||0);
+  if(freq>3.5 || ctr<0.5) return 'fatigue';
+  if(ctr>1.5 && freq<2.5) return 'stable';
+  return 'stable';
+}
+
+function parseRaw(raw){
+  if(!raw) return{};
+  const ac=raw.actions||[],av=raw.action_values||[];
+  const ga=t=>{const a=ac.find(a=>a.action_type===t);return a?parseInt(a.value):0;};
+  const gv=t=>{const a=av.find(a=>a.action_type===t);return a?parseFloat(a.value):0;};
+  const pixPur  = ga('offsite_conversion.fb_pixel_purchase');
+  const pixPurV = gv('offsite_conversion.fb_pixel_purchase');
+  const purV    = pixPurV || gv('purchase') || gv('omni_purchase');
+  const pur     = pixPur  || ga('onsite_conversion.purchase') || ga('purchase') || ga('omni_purchase');
+  const leads   = ga('offsite_conversion.fb_pixel_lead') || ga('lead');
+  const msgConn = ga('onsite_conversion.total_messaging_connection');
+  const spend   = parseFloat(raw.spend||0);
+  return {
+    spend, impressions:parseInt(raw.impressions||0), clicks:parseInt(raw.clicks||0),
+    reach:parseInt(raw.reach||0), frequency:parseFloat(raw.frequency||0),
+    ctr:parseFloat(raw.ctr||0)||0, cpm:parseFloat(raw.cpm||0)||0,
+    uniqueClicks:parseInt(raw.unique_clicks||0), uniqueCtr:parseFloat(raw.unique_ctr||0),
+    purchases:pur, purchaseValue:purV, leads,
+    roas:spend>0&&purV>0?purV/spend:null,
+    cpl:spend>0&&leads>0?spend/leads:null,
+    messagingConn:msgConn,
+    cpmsg:spend>0&&msgConn>0?spend/msgConn:null,
+    messagingFirstReply:ga('onsite_conversion.messaging_first_reply'),
+    addToCart:ga('offsite_conversion.fb_pixel_add_to_cart')||ga('onsite_conversion.add_to_cart')||ga('add_to_cart'),
+    initiateCheckout:ga('offsite_conversion.fb_pixel_initiate_checkout')||ga('onsite_conversion.checkout')||ga('initiate_checkout'),
+    landingPageViews:ga('landing_page_view'),
+    linkClicks:ga('link_click'),
+    postEngagement:ga('post_engagement'),
+    videoViews:ga('video_view'),
+    postShares:ga('share')||ga('post'),
+    postSaves:ga('onsite_conversion.post_save'),
+    newFollowersPage:ga('follow'),
+    newFollowersIG:ga('onsite_conversion.follow'),
+    donations:ga('onsite_conversion.donate')||ga('donate_total'),
+  };
+}
+
+function renderResultsTable(camps, profile, resultsEl, resultsHead){
+  if(!resultsEl) return;
+  const isMsg = profile==='servicios_leads';
+  const isEco = profile==='ecommerce';
+  const isVid = profile==='creador';
+  if(isMsg){
+    if(resultsHead) resultsHead.innerHTML = '<tr><th>Campaña</th><th>Fase</th><th>Gasto</th><th>Mensajes</th><th>Depth 2</th><th>Depth 5</th><th>CPMsg</th><th>CTR</th><th>Compras</th><th>ROAS</th><th>Costo/compra</th></tr>';
+    resultsEl.innerHTML = camps.map(camp=>{
+      const a=safeC(camp);
+      const ph=camp.phase||detectPhaseFromData(camp);
+      const phCls=ph==='stable'?'pp-s':ph==='fatigue'?'pp-f':ph==='learning'?'pp-l':'pp-u';
+      const roasM=a.roas?a.roas.toFixed(2)+'x':'—';
+      const cpaM=a.spend>0&&a.purchases>0?fc(a.spend/a.purchases):'—';
+      return `<tr>
+        <td style="font-weight:600;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${a.name||''}">${a.name||'—'}</td>
+        <td><span class="pp ${phCls}">${ph==='stable'?'Estable':ph==='fatigue'?'Fatiga':'Aprendizaje'}</span></td>
+        <td>${fc(a.spend)}</td><td>${fn(a.messagingConn)}</td>
+        <td>${fn(a.msgDepth2||0)}</td><td>${fn(a.msgDepth5||0)}</td>
+        <td>${a.cpmsg?fc(a.cpmsg):'—'}</td>
+        <td style="color:${a.ctr<1?'var(--danger)':a.ctr<2?'var(--amber)':'var(--success)'}">${a.ctr.toFixed(2)}%</td>
+        <td style="color:var(--success);font-weight:700">${fn(a.purchases||0)||'—'}</td>
+        <td style="color:${a.roas&&a.roas>=2?'var(--success)':a.roas&&a.roas>=1?'var(--amber)':'var(--danger)'}">${roasM}</td>
+        <td style="color:var(--teal)">${cpaM}</td>
+      </tr>`;
+    }).join('');
+  } else if(isEco){
+    if(resultsHead) resultsHead.innerHTML = '<tr><th>Campaña</th><th>Fase</th><th>Gasto</th><th>Compras</th><th>ROAS</th><th>CPA</th><th>CTR</th><th>CPM</th></tr>';
+    resultsEl.innerHTML = camps.map(camp=>{
+      const a=safeC(camp);
+      const ph=camp.phase||detectPhaseFromData(camp);
+      const phCls=ph==='stable'?'pp-s':ph==='fatigue'?'pp-f':ph==='learning'?'pp-l':'pp-u';
+      return `<tr>
+        <td style="font-weight:600;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${a.name||''}">${a.name||camp.campaign_name||'—'}</td>
+        <td><span class="pp ${phCls}">${ph==='stable'?'Estable':ph==='fatigue'?'Fatiga':'Aprendizaje'}</span></td>
+        <td>${fc(a.spend)}</td><td>${fn(a.purchases)}</td>
+        <td style="color:${(a.roas||0)>=2?'var(--success)':(a.roas||0)>=1?'var(--amber)':'var(--danger)'}">${a.roas?a.roas.toFixed(2)+'x':'—'}</td>
+        <td>${a.cpl?fc(a.cpl):'—'}</td>
+        <td style="color:${a.ctr<1?'var(--danger)':a.ctr<2?'var(--amber)':'var(--success)'}">${a.ctr.toFixed(2)}%</td>
+        <td>${fc(a.cpm)}</td>
+      </tr>`;
+    }).join('');
+  } else {
+    if(resultsHead) resultsHead.innerHTML = '<tr><th>Campaña</th><th>Fase</th><th>Gasto</th><th>Resultado</th><th>Compras</th><th>ROAS</th><th>Costo/compra</th><th>CTR</th><th>CPM</th><th>Frecuencia</th></tr>';
+    resultsEl.innerHTML = camps.map(camp=>{
+      const a=safeC(camp);
+      const ph=camp.phase||detectPhaseFromData(camp);
+      const phCls=ph==='stable'?'pp-s':ph==='fatigue'?'pp-f':ph==='learning'?'pp-l':'pp-u';
+      const res=a.messagingConn>0?fn(a.messagingConn)+' msg':a.leads>0?fn(a.leads)+' leads':a.purchases>0?fn(a.purchases)+' compras':'—';
+      const roasE=a.roas?a.roas.toFixed(2)+'x':'—';
+      const cpaE=a.spend>0&&a.purchases>0?fc(a.spend/a.purchases):'—';
+      return `<tr>
+        <td style="font-weight:600;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${a.name||''}">${a.name||camp.campaign_name||'—'}</td>
+        <td><span class="pp ${phCls}">${ph==='stable'?'Estable':ph==='fatigue'?'Fatiga':'Aprendizaje'}</span></td>
+        <td>${fc(a.spend)}</td><td>${res}</td>
+        <td style="color:var(--success);font-weight:${(a.purchases||0)>0?700:400}">${fn(a.purchases||0)||'—'}</td>
+        <td style="color:${a.roas&&a.roas>=2?'var(--success)':a.roas&&a.roas>=1?'var(--amber)':'var(--danger)'}">${roasE}</td>
+        <td style="color:var(--teal)">${cpaE}</td>
+        <td style="color:${a.ctr<1?'var(--danger)':a.ctr<2?'var(--amber)':'var(--success)'}">${a.ctr.toFixed(2)}%</td>
+        <td>${fc(a.cpm)}</td>
+        <td style="color:${a.frequency>3.5?'var(--danger)':a.frequency>2.5?'var(--amber)':'var(--success)'}">${a.frequency.toFixed(1)}</td>
+      </tr>`;
+    }).join('');
+  }
+}
+
+function delta(cur,prev,lib=false){
+  if(!cur||!prev||prev===0) return null;
+  const p=((cur-prev)/Math.abs(prev))*100;
+  return{p,good:lib?p<=0:p>=0};
+}
+
+// ── PERSONALIZACIÓN DE MÉTRICAS ──────────────────────────────
+// ── LECTOR DE ACTION TYPES ────────────────────────────────────
+function getAct(obj, type) {
+  if(obj._actions) {
+    const a = obj._actions.find(a => a.action_type === type);
+    return a ? parseInt(a.value) || 0 : 0;
+  }
+  return 0;
+}
+
+function safeC(c) {
+  const ga = t => getAct(c, t);
+  return {
+    pixelPurchase:    c.pixelPurchase    ?? ga('offsite_conversion.fb_pixel_purchase'),
+    pixelAddToCart:   c.pixelAddToCart   ?? ga('offsite_conversion.fb_pixel_add_to_cart'),
+    pixelCheckout:    c.pixelCheckout    ?? ga('offsite_conversion.fb_pixel_initiate_checkout'),
+    pixelViewContent: c.pixelViewContent ?? ga('offsite_conversion.fb_pixel_view_content'),
+    pixelSearch:      c.pixelSearch      ?? ga('offsite_conversion.fb_pixel_search'),
+    pixelWishlist:    c.pixelWishlist    ?? ga('offsite_conversion.fb_pixel_add_to_wishlist'),
+    pixelReg:         c.pixelReg         ?? ga('offsite_conversion.fb_pixel_complete_registration'),
+    pixelLead:        c.pixelLead        ?? ga('offsite_conversion.fb_pixel_lead'),
+    pixelCustom:      c.pixelCustom      ?? ga('offsite_conversion.fb_pixel_custom'),
+    onsitePurchase:   c.onsitePurchase   ?? ga('onsite_conversion.purchase'),
+    onsiteAddToCart:  c.onsiteAddToCart  ?? ga('onsite_conversion.add_to_cart'),
+    onsiteCheckout:   c.onsiteCheckout   ?? ga('onsite_conversion.checkout'),
+    donations:        c.donations        ?? ga('onsite_conversion.donate'),
+    msgDepth2:        c.msgDepth2        ?? ga('onsite_conversion.messaging_user_depth_2_message_send'),
+    msgDepth3:        c.msgDepth3        ?? ga('onsite_conversion.messaging_user_depth_3_message_send'),
+    msgDepth5:        c.msgDepth5        ?? ga('onsite_conversion.messaging_user_depth_5_message_send'),
+    videoViews3s:     c.videoViews3s     ?? (ga('video_view_3s') || c.videoViews || 0),
+    videoViews10s:    c.videoViews10s    ?? ga('video_view_10s'),
+    videoViews15s:    c.videoViews15s    ?? ga('video_view_15s'),
+    videoViews30s:    c.videoViews30s    ?? ga('video_view_30s'),
+    videoP25:         c.videoP25         ?? ga('video_p25_watched_actions'),
+    videoP50:         c.videoP50         ?? ga('video_p50_watched_actions'),
+    videoP75:         c.videoP75         ?? ga('video_p75_watched_actions'),
+    videoP95:         c.videoP95         ?? ga('video_p95_watched_actions'),
+    thruPlays:        c.thruPlays        ?? ga('video_p100_watched_actions'),
+    videoAvgTime:     c.videoAvgTime     || 0,
+    postReactions:    c.postReactions    ?? ga('post_reaction'),
+    postLikes:        c.postLikes        ?? ga('like'),
+    postComments:     c.postComments     ?? ga('comment'),
+    postShares:       c.postShares       ?? ga('share'),
+    pageEngagement:   c.pageEngagement   ?? ga('page_engagement'),
+    igProfileVisits:  c.igProfileVisits  ?? ga('ig_profile_visit'),
+    purchases:        c.purchases        || 0,
+    addToCart:        c.addToCart        || 0,
+    initiateCheckout: c.initiateCheckout || 0,
+    completeReg:      c.completeReg      || 0,
+    leads:            c.leads            || 0,
+    leadgenLeads:     c.leadgenLeads     || 0,
+    messagingConn:    c.messagingConn    || 0,
+    messagingFirstReply: c.messagingFirstReply || 0,
+    landingPageViews: c.landingPageViews || 0,
+    linkClicks:       c.linkClicks       || 0,
+    outboundClicks:   c.outboundClicks   || 0,
+    videoViews:       c.videoViews       || 0,
+    postEngagement:   c.postEngagement   || 0,
+    postSaves:        c.postSaves        || 0,
+    newFollowersPage: c.newFollowersPage || 0,
+    newFollowersIG:   c.newFollowersIG   || 0,
+    spend: c.spend||0, ctr: c.ctr||0, cpm: c.cpm||0, frequency: c.frequency||0,
+    impressions: c.impressions||0, clicks: c.clicks||0, reach: c.reach||0,
+    roas: c.roas||null, name: c.name||c.campaign_name||c.adset_name||c.campaignName||'—', status: c.status,
+    objective: c.objective, phase: c.phase, fatigueScore: c.fatigueScore||0,
+    campaignName: c.campaignName, adsetName: c.adsetName,
+  };
+}
+
+const ALL_KPI_METRICS = [
+  // Base
+  {id:'Gasto',        label:'Gasto',           cat:'base'},
+  {id:'ROAS',         label:'ROAS',             cat:'base'},
+  {id:'CTR',          label:'CTR',              cat:'base'},
+  {id:'CPM',          label:'CPM',              cat:'base'},
+  {id:'Frecuencia',   label:'Frecuencia',       cat:'base'},
+  {id:'Impresiones',  label:'Impresiones',      cat:'base'},
+  {id:'Alcance',      label:'Alcance',          cat:'base'},
+  {id:'Clics',        label:'Clics',            cat:'base'},
+  // Resultados
+  {id:'Mensajes',     label:'Mensajes',         cat:'resultados'},
+  {id:'Leads',        label:'Leads',            cat:'resultados'},
+  {id:'Compras',      label:'Compras',          cat:'resultados'},
+  {id:'CPL',          label:'CPL',              cat:'resultados'},
+  {id:'Costo x msg',  label:'Costo x msg',      cat:'resultados'},
+  {id:'V.Landing',    label:'V. Landing',       cat:'resultados'},
+  {id:'Al carrito',   label:'Al carrito',       cat:'resultados'},
+  // Engagement
+  {id:'Engagement',   label:'Engagement',       cat:'engagement'},
+  {id:'Video views',  label:'Video views',      cat:'engagement'},
+  {id:'Compartidos',  label:'Compartidos',      cat:'engagement'},
+  {id:'Guardados',    label:'Guardados',        cat:'engagement'},
+  {id:'Seg. FB',      label:'Nuevos seg. FB',   cat:'engagement'},
+  {id:'Seg. IG',      label:'Nuevos seg. IG',   cat:'engagement'},
+];
+const CAT_COLORS = {base:'var(--teal)',resultados:'var(--success)',engagement:'var(--amber)'};
+const CAT_LABELS = {base:'Base',resultados:'Resultados',engagement:'Engagement'};
+
+
+
+function loadHiddenMetrics(){
+  // Prioridad: servidor (clientCfg) > localStorage
+  if(clientCfg.dash_config?.hiddenMetrics){
+    hiddenMetrics = clientCfg.dash_config.hiddenMetrics;
+  } else {
+    hiddenMetrics = JSON.parse(localStorage.getItem('hiddenMetrics')||'[]');
+  }
+}
+
+async function saveDashConfig(){
+  try{
+    await fetch(`/api/${S}/save-dashboard-config`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({password:P, dashConfig:{hiddenMetrics}})
+    });
+    localStorage.setItem('hiddenMetrics', JSON.stringify(hiddenMetrics));
+    if(!clientCfg.dash_config) clientCfg.dash_config = {};
+    clientCfg.dash_config.hiddenMetrics = hiddenMetrics;
+  }catch(e){
+    localStorage.setItem('hiddenMetrics', JSON.stringify(hiddenMetrics));
+  }
+}
+
+function toggleCustomize(){
+  const p = document.getElementById('customizePanel');
+  if(!p) return;
+  const shown = p.style.display === 'none';
+  p.style.display = shown ? 'block' : 'none';
+  if(shown) buildMetricToggles();
+}
+
+function buildMetricToggles(){
+  const cats = ['base','resultados','engagement'];
+  let html = `<div style="width:100%;margin-bottom:10px;font-size:12px;color:var(--muted)">Tildá las métricas que querés ver en los KPI cards:</div>`;
+  cats.forEach(cat=>{
+    const items = ALL_KPI_METRICS.filter(m=>m.cat===cat);
+    html += `<div style="width:100%;margin-bottom:8px"><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:${CAT_COLORS[cat]};margin-bottom:6px">${CAT_LABELS[cat]}</div>`;
+    html += `<div style="display:flex;flex-wrap:wrap;gap:6px">`;
+    items.forEach(m=>{
+      html += `<label style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:5px 10px;border-radius:8px;background:var(--s1);border:1px solid var(--border)">
+        <input type="checkbox" id="chk-${m.id.replace(/ /g,'_').replace(/\./g,'_')}" ${hiddenMetrics.includes(m.id)?'':'checked'}
+          style="width:14px;height:14px;accent-color:var(--brand);cursor:pointer">
+        <span style="font-size:13px">${m.label}</span>
+      </label>`;
+    });
+    html += `</div></div>`;
+  });
+  html += `<div style="width:100%;margin-top:10px;display:flex;gap:8px">
+    <button onclick="applyMetricToggles()" style="padding:7px 18px;background:var(--brand);color:var(--brand-btn-text);border:none;border-radius:var(--r);font-family:inherit;font-size:13px;font-weight:600;cursor:pointer">Aplicar y guardar</button>
+    <button onclick="toggleCustomize()" style="padding:7px 14px;background:var(--s2);color:var(--muted);border:1px solid var(--border);border-radius:var(--r);font-family:inherit;font-size:13px;cursor:pointer">Cancelar</button>
+  </div>`;
+  document.getElementById('metricToggles').innerHTML = html;
+}
+
+async function applyMetricToggles(){
+  hiddenMetrics = ALL_KPI_METRICS.filter(m=>{
+    const el = document.getElementById('chk-'+m.id.replace(/ /g,'_').replace(/\./g,'_'));
+    return el && !el.checked;
+  }).map(m=>m.id);
+  await saveDashConfig();
+  toggleCustomize();
+  if(dashData) renderDash(dashData);
+}
+
+// ── EJECUTAR ANÁLISIS DEL AGENTE (separado del refresh) ───────
+async function loadAndRenderMemory(){
+  try{
+    const r = await fetch(`/api/${S}/memory?password=${encodeURIComponent(P)}`);
+    const d = await r.json();
+    if(!r.ok || !d.memory?.length) return;
+    const card = document.getElementById('memoryCard');
+    const body = document.getElementById('memoryContent');
+    if(!card||!body) return;
+    // Mostrar últimos 14 días en orden inverso
+    const items = [...d.memory].reverse().slice(0,14);
+    body.innerHTML = `
+      <div style="font-size:12px;color:var(--muted);margin-bottom:12px">
+        ${d.total} día${d.total!==1?'s':''} de historial acumulado. Claude usa este contexto en cada análisis.
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        ${items.map(m=>`
+          <div style="background:var(--s2);border:1px solid var(--border2);border-radius:var(--r);padding:10px 14px">
+            <div style="font-size:11px;font-weight:600;color:var(--brand);margin-bottom:4px">${m.fecha}</div>
+            <div style="font-size:13px;line-height:1.6;color:var(--text)">${m.resumen}</div>
+            ${m.acciones?`<div style="font-size:12px;color:var(--teal);margin-top:4px">▶ ${m.acciones}</div>`:''}
+            ${m.alertas?`<div style="font-size:12px;color:var(--amber);margin-top:3px">⚠️ ${m.alertas}</div>`:''}
+          </div>`).join('')}
+      </div>`;
+    card.style.display = 'block';
+  }catch(e){ console.warn('[memory] Error cargando:', e.message); }
+}
+
+async function runAgentAnalysis(){
+  const btn = document.getElementById('agentBtn');
+  const ico = document.getElementById('agentBtnIco');
+  const txt = document.getElementById('agentBtnTxt');
+  btn.disabled = true;
+  txt.textContent = 'Analizando...';
+  ico.innerHTML = '<span class="spin" style="border-top-color:#fff"></span>';
+  document.getElementById('agentContent').innerHTML = '<div class="empty" style="padding:2rem"><div class="spin spin-m" style="margin:0 auto 10px"></div><div style="color:var(--muted)">El agente está analizando las campañas del período seleccionado...</div></div>';
+
+  try {
+    // Usar período actual seleccionado
+    const period = currentPeriod === 'yesterday' ? 'yesterday' : currentPeriod === '30d' ? '30d' : '7d';
+    const r = await fetch(`/api/${S}/analyze-only`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ password: P, period })
+    });
+    const d = await r.json();
+    if(!r.ok) throw new Error(d.error);
+    // Actualizar solo el análisis sin tocar métricas
+    if(dashData) dashData.analysis = d.analysis;
+    renderAgentSections(d.analysis);
+    // Cargar memoria actualizada (el servidor la guardó async)
+    setTimeout(() => loadAndRenderMemory(), 3000);
+  } catch(e) {
+    document.getElementById('agentContent').innerHTML = `<div class="empty">Error: ${e.message}</div>`;
+  } finally {
+    btn.disabled = false;
+    txt.textContent = 'Ejecutar análisis';
+    ico.textContent = '▶';
+  }
+}
+
+function renderAgentSections(an){
+  if(!an) return;
+
+  // Agente estructurado
+  let ahtml = '';
+  const sumItems = an.summary_items || [];
+  if(sumItems.length){
+    ahtml += `<div class="diag"><div class="diag-lbl">Diagnóstico general</div>`;
+    ahtml += sumItems.map(it=>`<div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)"><span style="font-size:16px;flex-shrink:0;width:24px">${it.icon||'•'}</span><div><div style="font-weight:600;font-size:14px;margin-bottom:2px">${it.titulo}</div><div style="font-size:13px;color:var(--muted);line-height:1.5">${it.detalle}</div></div></div>`).join('');
+    ahtml += `</div>`;
+  }
+  const algItems = an.algorithm_items || [];
+  if(algItems.length){
+    ahtml += `<div class="diag tl"><div class="diag-lbl">Estado del algoritmo Andromeda</div>`;
+    ahtml += algItems.map(it=>`<div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)"><span style="font-size:16px;flex-shrink:0;width:24px">${it.icon||'•'}</span><div><div style="font-weight:600;font-size:14px;margin-bottom:2px">${it.titulo}</div><div style="font-size:13px;color:var(--muted);line-height:1.5">${it.detalle}</div></div></div>`).join('');
+    ahtml += `</div>`;
+  }
+  document.getElementById('agentContent').innerHTML = ahtml || '<div class="empty">Sin análisis</div>';
+
+  // Campañas críticas
+  const crit = an.critical_campaigns || [];
+  const critCard = document.getElementById('critCard');
+  if(crit.length && critCard){
+    critCard.style.display = 'block';
+    document.getElementById('critList').innerHTML = crit.map(c=>`
+      <div class="crit">
+        <div class="crit-name">⚠ ${c.name}</div>
+        <div class="crit-issue">${c.issue}</div>
+        <div class="crit-action">→ ${c.action}</div>
+      </div>`).join('');
+  }
+
+  // Análisis adsets
+  const adsetI = an.adset_insights || [];
+  const adsetInsightCard = document.getElementById('adsetInsightCard');
+  if(adsetI.length && adsetInsightCard){
+    adsetInsightCard.style.display = 'block';
+    document.getElementById('adsetInsightList').innerHTML = adsetI.map(it=>`
+      <div style="display:flex;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)">
+        <span style="font-size:16px;flex-shrink:0;width:24px">${it.icon||'•'}</span>
+        <div><div style="font-weight:600;font-size:14px;margin-bottom:2px">${it.titulo}</div><div style="font-size:13px;color:var(--muted);line-height:1.5">${it.detalle}</div></div>
+      </div>`).join('');
+  }
+
+  // Creatividades
+  const creItems = an.creative_items || [];
+  const creativeCard = document.getElementById('creativeCard');
+  if(creItems.length && creativeCard){
+    creativeCard.style.display = 'block';
+    let chtml = `<div class="diag am"><div class="diag-lbl">Análisis de creatividades</div>`;
+    chtml += creItems.map(it=>`<div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)"><span style="font-size:16px;flex-shrink:0;width:24px">${it.icon||'•'}</span><div><div style="font-weight:600;font-size:14px;margin-bottom:2px">${it.titulo}</div><div style="font-size:13px;color:var(--muted);line-height:1.5">${it.detalle}</div></div></div>`).join('');
+    chtml += `</div>`;
+    document.getElementById('creativeList').innerHTML = chtml;
+  }
+
+  // Conclusión + acciones con nombres completos
+  const recs = an.recommendations || [];
+  const concItems = an.conclusion_items || [];
+  if(recs.length || concItems.length){
+    let chtml = '';
+    if(concItems.length){
+      chtml += `<div class="diag tl" style="margin-bottom:1rem"><div class="diag-lbl">Conclusión ejecutiva</div>`;
+      chtml += concItems.map(it=>`<div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)"><span style="font-size:16px;flex-shrink:0;width:24px">${it.icon||'✅'}</span><div><div style="font-weight:600;font-size:14px;margin-bottom:2px">${it.titulo}</div><div style="font-size:13px;color:var(--muted);line-height:1.5">${it.detalle}</div></div></div>`).join('');
+      chtml += `</div>`;
+    }
+    if(recs.length){
+      chtml += `<div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:.8rem">Acciones recomendadas</div>`;
+      chtml += recs.map((r,i)=>{
+        const imp = r.impact==='alto'?'ib-a':r.impact==='medio'?'ib-m':'ib-b';
+        const ai  = r.impact==='alto'?'ai-h':r.impact==='medio'?'ai-m':'ai-l';
+        // Nombre completo del contexto
+        const ctx = r.campana && r.campana!=='cuenta' ? `<span style="font-size:12px;color:var(--muted2);background:var(--s2);border-radius:5px;padding:2px 7px;margin-left:4px">${r.campana}</span>` : '';
+        return`<div class="ai ${ai}">
+          <div class="an">${i+1}</div>
+          <div style="flex:1">
+            <div style="display:flex;align-items:flex-start;gap:6px;margin-bottom:3px;flex-wrap:wrap">
+              <div class="ai-text">${r.action}</div>
+              <span class="ai-badge ${imp}">${r.impact}</span>${ctx}
+            </div>
+            <div class="ai-det">${r.detail||''}</div>
+          </div>
+        </div>`;
+      }).join('');
+    }
+    document.getElementById('conclusionContent').innerHTML = chtml;
+  }
+}
+
+// ── EXPORT PDF ────────────────────────────────────────────────
+function exportPDF(){
+  const an    = dashData?.analysis || {};
+  const acc   = dashData?.metrics?.account || {};
+  const camps = dashData?.metrics?.campaigns || [];
+  const adsets= dashData?.metrics?.adsets || [];
+  const ads   = dashData?.metrics?.ads || [];
+  const kpis  = clientCfg.kpi_targets || {};
+  const score = an.health_score || 0;
+  const scoreColor = score>=70?'#16a34a':score>=45?'#d97706':'#dc2626';
+  const periodLabel = currentPeriod==='yesterday'?'Ayer':currentPeriod==='30d'?'Últimos 30 días':'Últimos 7 días';
+  const dateStr = new Date().toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
+
+  const renderItems = (items) => (items||[]).map(it=>`
+    <div class="item-row">
+      <div class="item-icon">${it.icon||'•'}</div>
+      <div><div class="item-title">${it.titulo}</div><div class="item-detail">${it.detalle}</div></div>
+    </div>`).join('');
+
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
+  <style>
+    @page { size: A4; margin: 15mm 14mm 20mm 14mm; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: Arial, sans-serif; font-size: 11px; color: #1a1a1a; background: #fff; }
+
+    /* HEADER */
+    .pdf-header { display: flex; align-items: center; justify-content: space-between; padding-bottom: 10px; border-bottom: 2px solid #c8f135; margin-bottom: 14px; }
+    .pdf-logo { display: flex; align-items: center; gap: 10px; }
+    .pdf-logo-icon { width: 32px; height: 32px; background: #0b0b0d; border-radius: 7px; display: flex; align-items: center; justify-content: center; color: #c8f135; font-weight: 700; font-size: 16px; }
+    .pdf-logo-text { font-size: 14px; font-weight: 700; color: #0b0b0d; }
+    .pdf-logo-text span { color: #16a34a; }
+    .pdf-header-meta { text-align: right; font-size: 10px; color: #666; line-height: 1.5; }
+
+    /* TÍTULOS */
+    h1 { font-size: 17px; color: #0b0b0d; margin-bottom: 3px; }
+    h2 { font-size: 12px; font-weight: 700; margin: 14px 0 6px; color: #333; border-bottom: 1px solid #e0e0e0; padding-bottom: 4px; text-transform: uppercase; letter-spacing: .06em; }
+    .meta { font-size: 10px; color: #888; margin-bottom: 14px; }
+
+    /* SCORE + KPIs */
+    .score-kpi-row { display: flex; gap: 12px; margin-bottom: 14px; align-items: flex-start; }
+    .score-box { text-align: center; background: #f8f8f8; border-radius: 8px; padding: 12px 16px; border: 2px solid; min-width: 90px; }
+    .score-num { font-size: 26px; font-weight: 700; line-height: 1; }
+    .score-lbl { font-size: 9px; text-transform: uppercase; letter-spacing: .06em; color: #888; margin-top: 3px; }
+    .kpi-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 7px; flex: 1; }
+    .kpi-card { background: #f5f5f5; border-radius: 6px; padding: 7px 9px; }
+    .kpi-label { font-size: 9px; text-transform: uppercase; letter-spacing: .05em; color: #888; margin-bottom: 2px; }
+    .kpi-value { font-size: 14px; font-weight: 700; color: #0b0b0d; }
+
+    /* TABLAS */
+    table { width: 100%; border-collapse: collapse; font-size: 10px; margin-bottom: 14px; page-break-inside: auto; }
+    th { background: #f0f0f0; padding: 5px 6px; text-align: left; font-size: 9px; text-transform: uppercase; letter-spacing: .04em; border-bottom: 1px solid #ddd; white-space: nowrap; }
+    td { padding: 5px 6px; border-bottom: 1px solid #eee; vertical-align: middle; }
+    tr:nth-child(even) td { background: #fafafa; }
+
+    /* ANÁLISIS */
+    .analysis-block { border-left: 3px solid #888; border-radius: 4px; padding: 8px 12px; margin-bottom: 8px; background: #f9f9f9; }
+    .analysis-block.purple { border-left-color: #7c3aed; }
+    .analysis-block.teal   { border-left-color: #0d9488; }
+    .analysis-block.amber  { border-left-color: #d97706; }
+    .analysis-block.danger { border-left-color: #dc2626; }
+    .block-label { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; color: #666; margin-bottom: 5px; }
+    .item-row { display: flex; gap: 8px; padding: 5px 0; border-bottom: 1px solid #eee; }
+    .item-row:last-child { border-bottom: none; }
+    .item-icon { font-size: 13px; flex-shrink: 0; width: 18px; }
+    .item-title { font-weight: 600; margin-bottom: 1px; font-size: 11px; }
+    .item-detail { color: #555; font-size: 10px; line-height: 1.4; }
+
+    /* ACCIONES */
+    .action-item { display: flex; gap: 8px; padding: 6px 8px; background: #f5f5f5; border-radius: 5px; margin-bottom: 5px; }
+    .action-num { width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; flex-shrink: 0; }
+    .alto .action-num  { background: #fee2e2; color: #dc2626; }
+    .medio .action-num { background: #fef3c7; color: #d97706; }
+    .bajo .action-num  { background: #d1fae5; color: #059669; }
+    .action-text   { font-weight: 600; font-size: 11px; }
+    .action-detail { color: #555; font-size: 10px; margin-top: 1px; line-height: 1.4; }
+    .badge { font-size: 9px; font-weight: 700; padding: 1px 6px; border-radius: 10px; margin-left: 4px; }
+    .badge-alto  { background: #fee2e2; color: #dc2626; }
+    .badge-medio { background: #fef3c7; color: #d97706; }
+    .badge-bajo  { background: #d1fae5; color: #059669; }
+
+    /* PIE DE PÁGINA */
+    .pdf-footer { position: fixed; bottom: 0; left: 0; right: 0; border-top: 1px solid #e0e0e0; padding: 6px 14mm; display: flex; align-items: center; justify-content: space-between; background: #fff; }
+    .pdf-footer-logo { display: flex; align-items: center; gap: 6px; }
+    .pdf-footer-icon { width: 18px; height: 18px; background: #0b0b0d; border-radius: 4px; display: flex; align-items: center; justify-content: center; color: #c8f135; font-weight: 700; font-size: 10px; }
+    .pdf-footer-brand { font-size: 10px; font-weight: 600; color: #333; }
+    .pdf-footer-brand span { color: #16a34a; }
+    .pdf-footer-right { font-size: 9px; color: #999; text-align: right; line-height: 1.5; }
+  
+/* CREATIVIDADES */
+.cr-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:1.2rem;margin-bottom:1.5rem}
+.cr-card{background:var(--s1);border:1px solid var(--border2);border-radius:var(--rlg);overflow:hidden;transition:transform .15s,box-shadow .15s}
+.cr-card:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.5)}
+.cr-img-wrap{position:relative;width:100%;aspect-ratio:1/1;background:var(--s2);overflow:hidden}
+.cr-img-wrap img{width:100%;height:100%;object-fit:cover}
+.cr-img-placeholder{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:2.5rem;color:var(--muted2)}
+.cr-media-badge{position:absolute;top:8px;right:8px;background:rgba(0,0,0,.7);color:#fff;font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px}
+.cr-body{padding:14px}
+.cr-name{font-size:12px;font-weight:600;color:var(--text);margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cr-camp{font-size:10px;color:var(--muted);margin-bottom:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cr-metrics{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px}
+.cr-met{background:var(--s2);border:1px solid var(--border);border-radius:6px;padding:7px 8px;text-align:center}
+.cr-met-label{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:2px}
+.cr-met-val{font-size:13px;font-weight:700;color:var(--text)}
+.cr-result{background:var(--brand-dim);border:1px solid rgba(200,241,53,.2);border-radius:6px;padding:7px 10px;font-size:12px;color:var(--brand);text-align:center;margin-top:6px}
+.cr-ai-panel{background:var(--s1);border:1px solid var(--border2);border-radius:var(--rlg);padding:1.4rem;margin-bottom:1.5rem}
+.cr-ai-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem}
+@media(max-width:700px){.cr-ai-grid{grid-template-columns:1fr}}
+.cr-ai-item{background:var(--s2);border:1px solid var(--border2);border-radius:var(--r);padding:12px 14px}
+.cr-ai-item-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:6px;display:flex;align-items:center;gap:6px}
+.cr-ai-item-val{font-size:13px;color:var(--text);line-height:1.6}
+.cr-recs{display:flex;flex-direction:column;gap:6px}
+.cr-rec{display:flex;align-items:flex-start;gap:8px;font-size:13px;color:var(--text);line-height:1.6}
+.cr-rec-num{background:var(--brand-dim2);border:1px solid rgba(200,241,53,.3);color:var(--brand);font-size:10px;font-weight:800;width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px}
+.cr-period-bar{display:flex;gap:6px;margin-bottom:1.5rem;flex-wrap:wrap}
+.cr-loading{display:flex;align-items:center;justify-content:center;gap:10px;padding:3rem;color:var(--muted);font-size:14px}
+.cr-empty{text-align:center;padding:3rem;color:var(--muted);font-size:14px}
+.cr-winner{border-color:rgba(200,241,53,.4);box-shadow:0 0 0 1px rgba(200,241,53,.2)}
+.cr-winner .cr-img-wrap::after{content:'🏆 TOP';position:absolute;top:8px;left:8px;background:var(--brand);color:#0b0b0d;font-size:10px;font-weight:800;padding:2px 8px;border-radius:10px}
+
+/* ANÁLISIS DUAL */
+.dual-panel{background:var(--s1);border:1px solid var(--border2);border-radius:var(--rlg);padding:1.4rem;margin-bottom:1.5rem}
+.dual-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem}
+@media(max-width:600px){.dual-grid{grid-template-columns:1fr}}
+.dual-ai-card{background:var(--s2);border:1px solid var(--border);border-radius:var(--r);padding:14px}
+.dual-ai-header{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.dual-ai-logo{width:24px;height:24px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800}
+.dual-ai-score{font-size:22px;font-weight:800;color:var(--brand)}
+.dual-tip{display:flex;gap:6px;font-size:12px;color:var(--muted);line-height:1.5;margin-top:4px}
+.dual-tip::before{content:'→';color:var(--brand);flex-shrink:0}
+.andromeda-panel{background:linear-gradient(135deg,#1e1b4b,#312e81);border-radius:var(--rlg);padding:1.4rem;margin-bottom:1.5rem;border:1px solid rgba(165,180,252,.2)}
+.andromeda-title{color:#a5b4fc;font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;margin-bottom:12px}
+.andromeda-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media(max-width:600px){.andromeda-grid{grid-template-columns:1fr}}
+.andromeda-item{background:rgba(255,255,255,.07);border-radius:8px;padding:10px 12px}
+.andromeda-item-label{font-size:10px;font-weight:700;color:#a5b4fc;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px}
+.andromeda-item-val{font-size:13px;color:#e0e7ff;line-height:1.6}
+.cr-ad-analysis{margin-top:10px;border-top:1px solid var(--border);padding-top:10px}
+.cr-ad-scores{display:flex;gap:10px;margin-bottom:8px}
+.cr-ad-score-badge{flex:1;background:var(--s2);border:1px solid var(--border);border-radius:6px;padding:6px 8px;text-align:center}
+.cr-ad-score-label{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.cr-ad-score-val{font-size:16px;font-weight:800;color:var(--brand)}
+</style>
+  </head><body>
+
+  <!-- PIE DE PÁGINA FIJO -->
+  <div class="pdf-footer">
+    <div class="pdf-footer-logo">
+      <div class="pdf-footer-icon">D</div>
+      <div class="pdf-footer-brand">Docta<span>Nexus</span> · Meta Intelligence</div>
+    </div>
+    <div class="pdf-footer-right">
+      doctanexus.com · © ${new Date().getFullYear()} Docta Nexus<br>
+      Todos los derechos reservados
+    </div>
+  </div>
+
+  <!-- ENCABEZADO -->
+  <div class="pdf-header">
+    <div class="pdf-logo">
+      <div class="pdf-logo-icon">D</div>
+      <div>
+        <div class="pdf-logo-text">Docta<span>Nexus</span> — Meta Intelligence</div>
+        <div style="font-size:10px;color:#888">Análisis inteligente · Algoritmo Advantage+ / Andromeda</div>
+      </div>
+    </div>
+    <div class="pdf-header-meta">
+      <strong>${clientCfg.name||'Cliente'}</strong><br>
+      Período: ${periodLabel}<br>
+      ${dateStr}
+    </div>
+  </div>
+
+  <!-- SCORE + KPIs -->
+  <h2>Score de salud & métricas principales</h2>
+  <div class="score-kpi-row">
+    <div class="score-box" style="border-color:${scoreColor}">
+      <div class="score-num" style="color:${scoreColor}">${score}</div>
+      <div style="font-size:8px;color:#888">/100</div>
+      <div class="score-lbl">Score salud</div>
+    </div>
+    <div class="kpi-grid">
+      <div class="kpi-card"><div class="kpi-label">Gasto</div><div class="kpi-value">${fc(acc.spend)}</div></div>
+      <div class="kpi-card"><div class="kpi-label">ROAS</div><div class="kpi-value">${acc.roas?acc.roas.toFixed(2)+'x':'—'}</div></div>
+      <div class="kpi-card"><div class="kpi-label">CTR</div><div class="kpi-value">${(acc.ctr||0).toFixed(2)}%</div></div>
+      <div class="kpi-card"><div class="kpi-label">CPM</div><div class="kpi-value">${fc(acc.cpm)}</div></div>
+      <div class="kpi-card"><div class="kpi-label">Frecuencia</div><div class="kpi-value">${(acc.frequency||0).toFixed(1)}</div></div>
+      <div class="kpi-card"><div class="kpi-label">Mensajes</div><div class="kpi-value">${acc.messagingConn||0}</div></div>
+      <div class="kpi-card"><div class="kpi-label">Leads</div><div class="kpi-value">${acc.leads||0}</div></div>
+      <div class="kpi-card"><div class="kpi-label">Compras</div><div class="kpi-value">${acc.purchases||0}</div></div>
+    </div>
+  </div>
+
+  <!-- CAMPAÑAS -->
+  <h2>Campañas activas</h2>
+  <table><thead><tr><th>Campaña</th><th>Estado</th><th>Fase</th><th>Resultados</th><th>Gasto</th><th>CTR</th><th>CPM</th><th>Frecuencia</th></tr></thead>
+  <tbody>${camps.map(c=>`<tr>
+    <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${c.name}</td>
+    <td>${(c.status||'').toUpperCase()==='ACTIVE'?'● Activa':'◌ Pausada'}</td>
+    <td>${c.phase==='stable'?'Estable':c.phase==='fatigue'?'Fatiga':c.phase==='learning'?'Aprendizaje':'—'}</td>
+    <td>${c.conversions||c.leads||c.messagingConn||0}</td>
+    <td>${fc(c.spend)}</td>
+    <td>${(c.ctr||0).toFixed(2)}%</td>
+    <td>${fc(c.cpm)}</td>
+    <td>${(c.frequency||0).toFixed(1)}</td>
+  </tr>`).join('')}</tbody></table>
+
+  ${an.summary_items?.length ? `
+  <h2>Diagnóstico del agente</h2>
+  <div class="analysis-block purple">
+    <div class="block-label">Diagnóstico general</div>
+    ${renderItems(an.summary_items)}
+  </div>
+  <div class="analysis-block teal">
+    <div class="block-label">Estado del algoritmo Andromeda</div>
+    ${renderItems(an.algorithm_items)}
+  </div>` : ''}
+
+  ${an.critical_campaigns?.length ? `
+  <h2>Campañas que requieren atención</h2>
+  ${an.critical_campaigns.map(c=>`
+    <div class="analysis-block danger">
+      <div class="item-title" style="color:#dc2626">⚠ ${c.name}</div>
+      <div class="item-detail" style="margin:3px 0">${c.issue}</div>
+      <div style="font-size:10px;background:#fee2e2;padding:4px 8px;border-radius:4px;margin-top:4px">→ ${c.action}</div>
+    </div>`).join('')}` : ''}
+
+  ${an.conclusion_items?.length || an.recommendations?.length ? `
+  <h2>Conclusión y acciones recomendadas</h2>
+  ${(an.conclusion_items||[]).length ? `
+  <div class="analysis-block teal" style="margin-bottom:10px">
+    <div class="block-label">Conclusión ejecutiva</div>
+    ${renderItems(an.conclusion_items)}
+  </div>` : ''}
+  ${(an.recommendations||[]).map((r,i)=>`
+    <div class="action-item ${r.impact==='alto'?'alto':r.impact==='medio'?'medio':'bajo'}">
+      <div class="action-num">${i+1}</div>
+      <div>
+        <div><span class="action-text">${r.action}</span>
+        <span class="badge badge-${r.impact}">${r.impact}</span>
+        ${r.campana&&r.campana!=='cuenta'?`<span style="font-size:9px;color:#666;margin-left:4px">${r.campana}</span>`:''}</div>
+        <div class="action-detail">${r.detail||''}</div>
+      </div>
+    </div>`).join('')}` : ''}
+
+  </body></html>`;
+
+  const win = window.open('','_blank');
+  if(!win){ alert('Permitir ventanas emergentes para exportar el PDF.'); return; }
+  win.document.write(html);
+  win.document.close();
+  setTimeout(()=>{ win.focus(); win.print(); }, 600);
+}
+const TIPS = {
+  'Gasto':           'Total invertido en el período seleccionado en todas las campañas activas.',
+  'ROAS':            'Retorno sobre inversión publicitaria. Cuántos pesos generás por cada peso gastado en ads. Un ROAS de 3x significa que ganás $3 por cada $1 invertido.',
+  'CPA':             'Costo por adquisición. Cuánto te cuesta cada conversión (compra, lead, etc). Cuanto más bajo, mejor.',
+  'CTR':             'Click-Through Rate. Porcentaje de personas que hacen clic en tu anuncio sobre el total que lo ven. Un CTR saludable en feed es 1-3%.',
+  'CPM':             'Costo por mil impresiones. Cuánto pagás cada vez que tu anuncio se muestra 1.000 veces. Refleja la competencia en la subasta y la calidad del anuncio.',
+  'Frecuencia':      'Promedio de veces que cada persona vio tu anuncio. Frecuencia >3.5 puede indicar fatiga creativa. >4.5 es crítico y suele degradar el CTR y el ROAS.',
+  'Impresiones':     'Total de veces que tus anuncios fueron mostrados, incluyendo vistas repetidas a la misma persona.',
+  'Alcance':         'Número de personas únicas que vieron al menos uno de tus anuncios en el período.',
+  'Clics':           'Total de clics en todos los anuncios, incluyendo clics en el perfil, reacciones y otros elementos.',
+  'Clics únicos':    'Clics de personas únicas en el enlace principal del anuncio. Más representativo que los clics totales.',
+  'CTR único':       'Porcentaje de personas únicas que hicieron clic sobre el total de personas alcanzadas.',
+  'CPL':             'Costo por lead. Cuánto te cuesta conseguir cada lead o contacto calificado.',
+  'Compras':         'Cantidad de compras atribuidas a tus anuncios en el período según el pixel de Meta.',
+  'Valor compras':   'Ingreso total generado por las compras atribuidas a tus anuncios.',
+  'Leads':           'Contactos o potenciales clientes captados a través de los anuncios.',
+  'Leads form.':     'Leads generados mediante formularios nativos de Meta (Lead Ads), sin salir de la plataforma.',
+  'Registros':       'Completaron un formulario de registro en tu sitio web, atribuido a tus anuncios.',
+  'Al carrito':      'Personas que agregaron un producto al carrito en tu tienda, atribuido a tus anuncios.',
+  'Checkout':        'Personas que iniciaron el proceso de compra (checkout) en tu tienda.',
+  'Vistas landing':  'Personas que llegaron a tu página de destino y esperaron a que cargue completamente.',
+  'Clics enlace':    'Clics específicamente en el enlace del anuncio, excluyendo otros tipos de clics.',
+  'Mensajes':        'Conexiones de mensajería iniciadas vía WhatsApp o Messenger desde los anuncios. Métrica clave para campañas de lead performance.',
+  'Compartidos':     'Cantidad de veces que los usuarios compartieron tu publicación con su red. Señal fuerte de contenido relevante y con potencial viral.',
+  'Guardados':       'Veces que los usuarios guardaron tu publicación para verla después. Indica alto interés en el contenido o el producto.',
+  'Nuevos seg. FB':  'Nuevos seguidores o me gusta de página de Facebook generados a partir de los anuncios en el período.',
+  'Nuevos seg. IG':  'Nuevos seguidores de Instagram generados a partir de los anuncios en el período.',
+  'ThruPlays':       'Reproducciones completas del video (100%) o de al menos 15 segundos. Métrica clave para campañas de video con objetivo de visualización.',
+  'Donaciones':      'Donaciones realizadas en el sitio web atribuidas a los anuncios.',
+  'Visitas perfil IG': 'Visitas al perfil de Instagram generadas directamente desde los anuncios.',
+  'Costo x mensaje': 'Costo promedio por cada conversación iniciada vía mensajería.',
+  '1ras respuestas': 'Cantidad de primeras respuestas recibidas en conversaciones iniciadas por ads.',
+  'Conv. iniciadas': 'Conversaciones de mensajería iniciadas en los últimos 7 días (ventana de atribución de Meta).',
+  'Post engagement': 'Total de interacciones con las publicaciones: me gusta, comentarios, compartidos, guardados.',
+  'Video views':     'Reproducciones de video de al menos 3 segundos, consideradas como views reales por Meta.',
+  'Video 25%':       'Personas que vieron al menos el 25% de la duración del video.',
+  'Video 75%':       'Personas que vieron al menos el 75% del video. Alta intención y fuerte señal de interés.',
+};
+
+function getTip(label, pos=''){
+  const txt = TIPS[label];
+  if(!txt) return '';
+  const posClass = pos === 'left' ? 'tip-left' : pos === 'right' ? 'tip-right' : '';
+  return `<div class="tip-box ${posClass}"><strong>${label}</strong>${txt}</div>`;
+}
+
+function mkKpi(label, value, ok, hint, prevValue){
+  const sc=ok===null||ok===undefined?'':ok?'var(--success)':'var(--danger)';
+  const si=ok===null||ok===undefined?'':ok?'✓':'✗';
+  let deltaHtml='';
+  if(prevValue!=null && prevValue!==undefined && prevValue!==0){
+    const d=delta(parseMetricValue(value), prevValue);
+    if(d) deltaHtml=`<div class="md" style="color:${d.good?'var(--success)':'var(--danger)'}">${d.p>0?'+':''}${d.p.toFixed(1)}% vs período ant.</div>`;
+  }
+  return`<div class="mc tip-wrap">
+    ${getTip(label)}
+    <div class="ml">${label}</div>
+    <div class="mv">${value}</div>
+    ${deltaHtml||( si||hint?`<div class="md" style="color:${sc||'var(--muted2)'};">${si} <span style="color:var(--muted2)">${hint}</span></div>`:'')}
+  </div>`;
+}
+
+function parseMetricValue(str){
+  if(!str||str==='—') return null;
+  return parseFloat(str.replace(/[^0-9.,]/g,'').replace(',','.')) || null;
+}
+
+function fillMg(id, items, lbl=''){
+  const el = document.getElementById(id);
+  if(!el){ console.warn('[fillMg] elemento no encontrado:', id); return; }
+  el.innerHTML=items.map(([l,v,d],i)=>{
+    const pos = i%4===3?'right':i%4===0&&i>0?'left':'';
+    let dh='';
+    if(d){const s=d.p>0?'+':'';const c=d.good?'var(--success)':'var(--danger)';dh=`<div class="md" style="color:${c}">${s}${d.p.toFixed(1)}% ${lbl?'vs 7d':'vs ant.'}</div>`;}
+    return`<div class="mc tip-wrap">
+      ${getTip(l,pos)}
+      <div class="ml">${l}${lbl?` <span style="color:var(--brand);font-size:9px">${lbl}</span>`:''}</div>
+      <div class="mv">${v}</div>
+      ${dh}
+    </div>`;
+  }).join('');
+}
+
+function loadKpiForm(k){
+  const m={
+    cpa:'target_cpa', roas:'target_roas', cpl:'target_cpl', budget:'target_budget',
+    ctr:'target_ctr', cpm:'target_cpm', freq:'target_frequency', convs:'target_conversions',
+    cpmsg:'target_cpmsg', msgconn:'target_msgconn',
+    purchases:'target_purchases', 'conv-value':'target_conv_value',
+    leads:'target_leads', cpc:'target_cpc', landing:'target_landing',
+    clicks:'target_clicks', reach:'target_reach', impressions:'target_impressions',
+    thruplays:'target_thruplays', cptp:'target_cptp', retention:'target_retention',
+    avgtime:'target_avgtime', 'budget-monthly':'target_budget_monthly', minscore:'target_minscore',
+  };
+  Object.entries(m).forEach(([id,key])=>{
+    const el=document.getElementById('kpi-'+id);
+    if(el&&k[key]!=null) el.value=k[key];
+  });
+  // KPIs por objetivo
+  const objKpis = k.obj_kpis || {};
+  [['conv1','conv2'],['msg1','msg2'],['trafico1','trafico2'],
+   ['alcance1','alcance2'],['video1','video2'],['eng1','eng2']].forEach(([a,b])=>{
+    const prefix = a.replace(/\d/,'');
+    const el1=document.getElementById('kpi-'+a), el2=document.getElementById('kpi-'+b);
+    if(el1&&objKpis[prefix]?.[0]) el1.value=objKpis[prefix][0];
+    if(el2&&objKpis[prefix]?.[1]) el2.value=objKpis[prefix][1];
+  });
+  const base=document.getElementById('kpi-base');
+  if(base&&k.analysis_base) base.value=k.analysis_base;
+  // Moneda
+  const currEl=document.getElementById('kpi-currency');
+  if(currEl) currEl.value = clientCfg.currency || k.currency || 'ARS';
+  // Perfil del cliente
+  const profile = k.client_profile || clientCfg.kpi_targets?.client_profile || '';
+  if(profile){
+    const radio = document.querySelector(`input[name="clientProfile"][value="${profile}"]`);
+    if(radio) radio.checked = true;
+  }
+  // Rubro
+  const rubroEl = document.getElementById('kpi-rubro');
+  if(rubroEl && k.client_rubro) rubroEl.value = k.client_rubro;
+  // Conversiones custom
+  const cc = k.custom_conversions || [];
+  cc.slice(0,3).forEach((c,i)=>{
+    const kEl = document.getElementById('cc-key-'+(i+1));
+    const vEl = document.getElementById('cc-val-'+(i+1));
+    if(kEl) kEl.value = c.key || '';
+    if(vEl) vEl.value = c.label || '';
+  });
+  // Métricas excluidas
+  const excl = k.excluded_metrics || [];
+  ['roas','compras','mensajeria','video','leads','engagement','seguidores','trafico'].forEach(id=>{
+    const el = document.getElementById('excl-'+id);
+    if(el) el.checked = excl.includes(id);
+  });
+}
+
+async function saveKpis(){
+  // KPIs por objetivo de campaña
+  const gv = id => document.getElementById(id)?.value || '';
+  const obj_kpis = {
+    conv:    [gv('kpi-conv1'),    gv('kpi-conv2')   ].filter(Boolean),
+    msg:     [gv('kpi-msg1'),     gv('kpi-msg2')    ].filter(Boolean),
+    trafico: [gv('kpi-trafico1'), gv('kpi-trafico2')].filter(Boolean),
+    alcance: [gv('kpi-alcance1'), gv('kpi-alcance2')].filter(Boolean),
+    video:   [gv('kpi-video1'),   gv('kpi-video2')  ].filter(Boolean),
+    eng:     [gv('kpi-eng1'),     gv('kpi-eng2')    ].filter(Boolean),
+  };
+  const currency = document.getElementById('kpi-currency')?.value || 'ARS';
+  const clientProfile = document.querySelector('input[name="clientProfile"]:checked')?.value || '';
+  const clientRubro = document.getElementById('kpi-rubro')?.value?.trim() || '';
+  // Conversiones custom
+  const customConversions = [1,2,3].map(i=>({
+    key: document.getElementById('cc-key-'+i)?.value?.trim()||'',
+    label: document.getElementById('cc-val-'+i)?.value?.trim()||''
+  })).filter(c=>c.key&&c.label);
+
+  // Métricas excluidas
+  const excluded = ['roas','compras','mensajeria','video','leads','engagement','seguidores','trafico']
+    .filter(id => document.getElementById('excl-'+id)?.checked);
+
+  const kpis={
+    obj_kpis,
+    analysis_base: document.getElementById('kpi-base')?.value?.trim()||null,
+    currency,
+    client_profile: clientProfile,
+    client_rubro: clientRubro,
+    custom_conversions: customConversions,
+    excluded_metrics: excluded,
+    // Conversiones
+    target_roas:pf('kpi-roas'), target_cpa:pf('kpi-cpa'),
+    target_purchases:pi('kpi-purchases'), target_conv_value:pf('kpi-conv-value'),
+    // Mensajería / Leads
+    target_cpmsg:pf('kpi-cpmsg'), target_msgconn:pi('kpi-msgconn'),
+    target_cpl:pf('kpi-cpl'), target_leads:pi('kpi-leads'),
+    // Tráfico
+    target_ctr:pf('kpi-ctr'), target_cpc:pf('kpi-cpc'),
+    target_landing:pi('kpi-landing'), target_clicks:pi('kpi-clicks'),
+    // Alcance
+    target_cpm:pf('kpi-cpm'), target_frequency:pf('kpi-freq'),
+    target_reach:pi('kpi-reach'), target_impressions:pi('kpi-impressions'),
+    // Video
+    target_thruplays:pi('kpi-thruplays'), target_cptp:pf('kpi-cptp'),
+    target_retention:pf('kpi-retention'), target_avgtime:pf('kpi-avgtime'),
+    // General
+    target_budget:pf('kpi-budget'), target_budget_monthly:pf('kpi-budget-monthly'),
+    target_conversions:pi('kpi-convs'), target_minscore:pi('kpi-minscore'),
+  };
+  const r=await fetch(`/api/${S}/save-kpis`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:P,kpis})});
+  if(r.ok){
+    clientCfg.kpi_targets=kpis;
+    clientCfg.currency = currency;
+    setCurrency(currency);
+    showOk('kpi-ok');
+    if(dashData) renderDash(dashData);
+    showRefreshBanner();
+  }
+}
+
+function showRefreshBanner(){
+  const existing = document.getElementById('kpiBanner');
+  if(existing) return;
+  const banner = document.createElement('div');
+  banner.id = 'kpiBanner';
+  banner.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--s1);border:1px solid var(--brand);border-radius:var(--rlg);padding:14px 20px;display:flex;align-items:center;gap:14px;z-index:300;box-shadow:0 8px 32px rgba(0,0,0,.5);font-size:14px;max-width:460px;width:90%';
+  banner.innerHTML=`
+    <div style="flex:1;line-height:1.5">✦ KPIs guardados. <span style="color:var(--muted)">Regenerá el análisis del agente con los nuevos objetivos.</span></div>
+    <button onclick="regenerarAnalisis()" style="padding:8px 16px;background:var(--brand);color:var(--brand-btn-text);border:none;border-radius:var(--r);font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap">Regenerar análisis</button>
+    <button onclick="document.getElementById('kpiBanner').remove()" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:18px;padding:0 4px">✕</button>`;
+  document.body.appendChild(banner);
+  setTimeout(()=>banner.remove(), 15000);
+}
+
+async function regenerarAnalisis(){
+  const banner = document.getElementById('kpiBanner');
+  if(banner) banner.remove();
+  // Ir al dashboard y actualizar
+  document.querySelectorAll('.nav-tab').forEach(b=>b.classList.remove('on'));
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('on'));
+  document.querySelector('.nav-tab').classList.add('on');
+  document.getElementById('p-dash').classList.add('on');
+  await doRefresh();
+}
+
+function fn(n){return Math.round(n||0).toLocaleString('es-AR');}
+function fmoney(n){
+  n=parseFloat(n||0);
+  if(n===0) return '0';
+  if(n>=1000) return Math.round(n).toLocaleString('es-AR');
+  if(n>=100)  return n.toFixed(0);
+  if(n>=10)   return n.toFixed(1).replace('.',',');
+  return n.toFixed(2).replace('.',',');
+}
+function fc(n){ return CURR_SYM+fmoney(n); }
+function pf(id){return parseFloat(document.getElementById(id).value)||null;}
+function pi(id){return parseInt(document.getElementById(id).value)||null;}
+function fmtDate(s){if(!s)return'';const d=new Date(s+'T00:00:00');return d.toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric'});}
+function showOk(id){const e=document.getElementById(id);e.style.display='inline';setTimeout(()=>e.style.display='none',2500);}
+
+// ── CREATIVIDADES ─────────────────────────────────────────────
+
+let crPeriod = 'last_7d';
+let crLoaded = false;
+
+function setCrPeriod(btn, period) {
+  document.querySelectorAll('.cr-period-bar .pbtn').forEach(b => b.classList.remove('on'));
+  btn.classList.add('on');
+  crPeriod = period;
+  crLoaded = false;
+  loadCreatives();
+}
+
+async function loadCreatives() {
+  if (!S || !P) return;
+  const container = document.getElementById('cr-container');
+  if (!container) return;
+
+  container.innerHTML = '<div class="cr-loading"><span class="spinner"></span> Cargando creatividades...</div>';
+
+  try {
+    const r = await fetch('/api/' + S + '/creatives?password=' + encodeURIComponent(P) + '&period=' + crPeriod);
+    const data = await r.json();
+    if (data.error) { container.innerHTML = '<div class="cr-empty">⚠️ ' + data.error + '</div>'; return; }
+
+    renderCreatives(data);
+    crLoaded = true;
+  } catch(e) {
+    container.innerHTML = '<div class="cr-empty">Error cargando creatividades: ' + e.message + '</div>';
+  }
+}
+
+function fmtCr(n, curr) {
+  if (n == null || isNaN(n)) return '—';
+  const sym = (curr||'ARS') === 'USD' ? 'USD $' : '$';
+  return sym + Math.round(n).toLocaleString('es-AR');
+}
+
+function renderCreatives(data) {
+  const container = document.getElementById('cr-container');
+  const { creatives, aiAnalysis, total } = data;
+  const curr = (clientCfg && clientCfg.currency) || 'ARS';
+
+  if (!creatives || !creatives.length) {
+    container.innerHTML = '<div class="cr-empty">No se encontraron anuncios activos en este período.</div>';
+    return;
+  }
+
+  // Detectar el ganador (mayor CTR con gasto > 0)
+  const winner = [...creatives].filter(c => c.spend > 0).sort((a,b) => b.ctr - a.ctr)[0];
+
+  let html = '';
+
+  // Panel IA
+  if (aiAnalysis) {
+    html += `
+    <div class="cr-ai-panel">
+      <div class="ctitle"><span class="dot"></span> Nexus AI — Análisis de Creatividades</div>
+      <div class="cr-ai-grid">
+        <div class="cr-ai-item">
+          <div class="cr-ai-item-label">🏆 Anuncio ganador</div>
+          <div class="cr-ai-item-val">${aiAnalysis.winner || '—'}</div>
+        </div>
+        <div class="cr-ai-item">
+          <div class="cr-ai-item-label">⚠️ A mejorar</div>
+          <div class="cr-ai-item-val">${aiAnalysis.loser || '—'}</div>
+        </div>
+        <div class="cr-ai-item">
+          <div class="cr-ai-item-label">🔍 Patrón detectado</div>
+          <div class="cr-ai-item-val">${aiAnalysis.pattern || '—'}</div>
+        </div>
+        <div class="cr-ai-item">
+          <div class="cr-ai-item-label">💰 Presupuesto</div>
+          <div class="cr-ai-item-val">${aiAnalysis.budget_suggestion || '—'}</div>
+        </div>
+      </div>
+      ${aiAnalysis.recommendations?.length ? `
+      <div class="ctitle" style="margin-bottom:.75rem"><span class="dot"></span> Recomendaciones</div>
+      <div class="cr-recs">
+        ${aiAnalysis.recommendations.map((r,i) => `
+          <div class="cr-rec">
+            <div class="cr-rec-num">${i+1}</div>
+            <div>${r}</div>
+          </div>`).join('')}
+      </div>` : ''}
+    </div>`;
+  }
+
+  // Header con total
+  html += `<div style="font-size:12px;color:var(--muted);margin-bottom:1rem">${total} anuncios encontrados</div>`;
+
+  // Grid de cards
+  html += '<div class="cr-grid">';
+  for (const c of creatives) {
+    const isWinner = winner && c.adId === winner.adId;
+    const ctrColor = c.ctr >= 2 ? 'var(--success)' : c.ctr >= 1 ? 'var(--text)' : 'var(--danger)';
+    const freqColor = c.frequency > 3.5 ? 'var(--danger)' : c.frequency > 2.5 ? 'var(--amber)' : 'var(--text)';
+
+    html += `
+    <div class="cr-card${isWinner ? ' cr-winner' : ''}">
+      <div class="cr-img-wrap">
+        ${c.imageUrl
+          ? `<img src="${c.imageUrl}" alt="${c.adName}" loading="lazy" onerror="this.parentElement.innerHTML='<div class=cr-img-placeholder>🖼️</div>'">`
+          : '<div class="cr-img-placeholder">🖼️</div>'}
+        <span class="cr-media-badge">${c.mediaType === 'video' ? '▶ Video' : '🖼 Imagen'}</span>
+      </div>
+      <div class="cr-body">
+        <div class="cr-name" title="${c.adName}">${c.adName}</div>
+        <div class="cr-camp" title="${c.campaignName}">${c.campaignName}</div>
+        <div class="cr-metrics">
+          <div class="cr-met">
+            <div class="cr-met-label">Gasto</div>
+            <div class="cr-met-val">${fmtCr(c.spend, curr)}</div>
+          </div>
+          <div class="cr-met">
+            <div class="cr-met-label">CTR</div>
+            <div class="cr-met-val" style="color:${ctrColor}">${c.ctr.toFixed(2)}%</div>
+          </div>
+          <div class="cr-met">
+            <div class="cr-met-label">CPM</div>
+            <div class="cr-met-val">${fmtCr(c.cpm, curr)}</div>
+          </div>
+          <div class="cr-met">
+            <div class="cr-met-label">Frec.</div>
+            <div class="cr-met-val" style="color:${freqColor}">${c.frequency.toFixed(1)}</div>
+          </div>
+        </div>
+        ${c.mainResult ? `
+        <div class="cr-result">
+          ${c.mainResult.label}: ${c.mainResult.value.toLocaleString('es-AR')}
+          ${c.mainResult.cpa ? ` · CPA ${fmtCr(c.mainResult.cpa, curr)}` : ''}
+        </div>` : ''}
+      </div>
+    </div>`;
+  }
+  html += '</div>';
+
+  container.innerHTML = html;
+}
+
+
+// ── SESIÓN PERSISTENTE ────────────────────────────────────────
+function saveSession(sl, pw) {
+  try { localStorage.setItem('ni_session', JSON.stringify({ slug:sl, pwd:pw, ts:Date.now() })); } catch(e) {}
+}
+function loadSession() {
+  try {
+    const s = JSON.parse(localStorage.getItem('ni_session') || 'null');
+    if (!s) return null;
+    if (Date.now() - s.ts > 30*86400*1000) { localStorage.removeItem('ni_session'); return null; }
+    return s;
+  } catch(e) { return null; }
+}
+function clearSession() { try { localStorage.removeItem('ni_session'); } catch(e) {} }
+
+// Auto-login
+(async function autoLogin() {
+  const sess = loadSession();
+  if (!sess) return;
+  const slugEl = document.getElementById('loginSlug');
+  const pwdEl  = document.getElementById('loginPwd');
+  if (slugEl) slugEl.value = sess.slug;
+  if (pwdEl)  pwdEl.value  = sess.pwd;
+  try { await doLogin(true); } catch(e) {}
+})();
+
+// ── ANÁLISIS DUAL & ANDRÓMEDA ─────────────────────────────────
+let lastCreativesData = null;
+
+async function loadDeepAnalysis() {
+  if (!S || !P) return;
+  const btn = document.getElementById('btn-deep-analysis');
+  if (!btn) return;
+  btn.innerHTML = '<span class="spinner"></span> Analizando...';
+  btn.disabled = true;
+  try {
+    const r = await fetch('/api/' + S + '/creatives?password=' + encodeURIComponent(P) + '&period=' + crPeriod + '&withAnalysis=true');
+    const data = await r.json();
+    if (data.error) throw new Error(data.error);
+    lastCreativesData = data;
+    renderCreativesEnhanced(data);
+    btn.innerHTML = '✓ Análisis completado';
+  } catch(e) {
+    toast('Error: ' + e.message, 'err');
+    btn.innerHTML = '🤖 Análisis Dual IA';
+    btn.disabled = false;
+  }
+}
+
+async function sendCreativesEmail() {
+  if (!S || !P) return;
+  if (!lastCreativesData) { toast('Primero cargá las creatividades', 'err'); return; }
+  const btn = document.getElementById('btn-send-email');
+  if (!btn) return;
+  btn.innerHTML = '<span class="spinner"></span> Enviando...';
+  btn.disabled = true;
+  try {
+    const r = await fetch('/api/' + S + '/send-creatives-email', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ password:P, creatives:lastCreativesData.creatives, aiAnalysis:lastCreativesData.aiAnalysis, andromedaVerdict:lastCreativesData.andromedaVerdict })
+    });
+    const d = await r.json();
+    if (d.error) throw new Error(d.error);
+    toast('✓ Reporte enviado por correo', 'ok');
+    btn.innerHTML = '✉️ Enviar por correo';
+    btn.disabled = false;
+  } catch(e) {
+    toast('Error: ' + e.message, 'err');
+    btn.innerHTML = '✉️ Enviar por correo';
+    btn.disabled = false;
+  }
+}
+
+function renderCreativesEnhanced(data) {
+  const container = document.getElementById('cr-container');
+  if (!container) return;
+  const { creatives, aiAnalysis, andromedaVerdict, total } = data;
+  const curr = (clientCfg && clientCfg.currency) || 'ARS';
+  const sym  = curr === 'USD' ? 'USD $' : '$';
+
+  if (!creatives || !creatives.length) {
+    container.innerHTML = '<div class="cr-empty">No se encontraron anuncios activos.</div>';
+    return;
+  }
+
+  const winner = [...creatives].filter(c => c.spend > 0).sort((a,b) => b.ctr - a.ctr)[0];
+  let html = '';
+
+  // Panel Andrómeda
+  if (andromedaVerdict) {
+    html += '<div class="andromeda-panel">';
+    html += '<div class="andromeda-title">✦ Agente Andrómeda — Veredicto Final</div>';
+    html += '<p style="color:#c7d2fe;font-size:14px;line-height:1.7;margin-bottom:14px">' + (andromedaVerdict.resumen||'') + '</p>';
+    html += '<div class="andromeda-grid">';
+    if (andromedaVerdict.ganador) html += '<div class="andromeda-item"><div class="andromeda-item-label">🏆 Ganador</div><div class="andromeda-item-val">' + andromedaVerdict.ganador + '</div></div>';
+    if (andromedaVerdict.accion_inmediata) html += '<div class="andromeda-item"><div class="andromeda-item-label">⚡ Acción inmediata</div><div class="andromeda-item-val">' + andromedaVerdict.accion_inmediata + '</div></div>';
+    if (andromedaVerdict.redistribucion) html += '<div class="andromeda-item"><div class="andromeda-item-label">💰 Redistribución</div><div class="andromeda-item-val">' + andromedaVerdict.redistribucion + '</div></div>';
+    if (andromedaVerdict.proximo_test) html += '<div class="andromeda-item"><div class="andromeda-item-label">🧪 Próximo test</div><div class="andromeda-item-val">' + andromedaVerdict.proximo_test + '</div></div>';
+    html += '</div></div>';
+  } else if (aiAnalysis) {
+    html += '<div class="cr-ai-panel"><div class="ctitle"><span class="dot"></span> Nexus AI</div>';
+    html += '<div class="cr-ai-grid">';
+    if (aiAnalysis.winner) html += '<div class="cr-ai-item"><div class="cr-ai-item-label">🏆 Ganador</div><div class="cr-ai-item-val">' + aiAnalysis.winner + '</div></div>';
+    if (aiAnalysis.loser) html += '<div class="cr-ai-item"><div class="cr-ai-item-label">⚠️ A mejorar</div><div class="cr-ai-item-val">' + aiAnalysis.loser + '</div></div>';
+    if (aiAnalysis.pattern) html += '<div class="cr-ai-item"><div class="cr-ai-item-label">🔍 Patrón</div><div class="cr-ai-item-val">' + aiAnalysis.pattern + '</div></div>';
+    if (aiAnalysis.budget_suggestion) html += '<div class="cr-ai-item"><div class="cr-ai-item-label">💰 Presupuesto</div><div class="cr-ai-item-val">' + aiAnalysis.budget_suggestion + '</div></div>';
+    html += '</div>';
+    if (aiAnalysis.recommendations && aiAnalysis.recommendations.length) {
+      html += '<div class="cr-recs">' + aiAnalysis.recommendations.map((r,i) => '<div class="cr-rec"><div class="cr-rec-num">' + (i+1) + '</div><div>' + r + '</div></div>').join('') + '</div>';
+    }
+    html += '</div>';
+  }
+
+  html += '<div style="font-size:12px;color:var(--muted);margin-bottom:1rem">' + total + ' anuncios' + (andromedaVerdict ? ' · Análisis dual ✓' : '') + '</div>';
+  html += '<div class="cr-grid">';
+
+  for (const c of creatives) {
+    const isWinner = winner && c.adId === winner.adId;
+    const ctrColor  = c.ctr >= 2 ? 'var(--success)' : c.ctr >= 1 ? 'var(--text)' : 'var(--danger)';
+    const freqColor = c.frequency > 3.5 ? 'var(--danger)' : c.frequency > 2.5 ? 'var(--amber)' : 'var(--text)';
+    const cl = c.claudeAnalysis || null;
+    const gp = c.gptAnalysis || null;
+
+    html += '<div class="cr-card' + (isWinner ? ' cr-winner' : '') + '">';
+    html += '<div class="cr-img-wrap">';
+    if (c.imageUrl) {
+      html += '<img src="' + c.imageUrl + '" alt="" loading="lazy" onerror="this.parentElement.innerHTML=\x27<div class=cr-img-placeholder>🖼️</div>\x27">';
+    } else {
+      html += '<div class="cr-img-placeholder">🖼️</div>';
+    }
+    html += '<span class="cr-media-badge">' + (c.mediaType === 'video' ? '▶ Video' : '🖼 Imagen') + '</span>';
+    html += '</div><div class="cr-body">';
+    html += '<div class="cr-name" title="' + c.adName + '">' + c.adName + '</div>';
+    html += '<div class="cr-camp">' + c.campaignName + '</div>';
+    html += '<div class="cr-metrics">';
+    html += '<div class="cr-met"><div class="cr-met-label">Gasto</div><div class="cr-met-val">' + sym + Math.round(c.spend).toLocaleString('es-AR') + '</div></div>';
+    html += '<div class="cr-met"><div class="cr-met-label">CTR</div><div class="cr-met-val" style="color:' + ctrColor + '">' + c.ctr.toFixed(2) + '%</div></div>';
+    html += '<div class="cr-met"><div class="cr-met-label">CPM</div><div class="cr-met-val">' + sym + Math.round(c.cpm).toLocaleString('es-AR') + '</div></div>';
+    html += '<div class="cr-met"><div class="cr-met-label">Frec.</div><div class="cr-met-val" style="color:' + freqColor + '">' + c.frequency.toFixed(1) + '</div></div>';
+    html += '</div>';
+    if (c.mainResult) html += '<div class="cr-result">' + c.mainResult.label + ': ' + c.mainResult.value.toLocaleString('es-AR') + (c.mainResult.cpa ? ' · CPA ' + sym + Math.round(c.mainResult.cpa).toLocaleString('es-AR') : '') + '</div>';
+    if (cl || gp) {
+      html += '<div class="cr-ad-analysis"><div class="cr-ad-scores">';
+      if (cl) html += '<div class="cr-ad-score-badge"><div class="cr-ad-score-label">Claude</div><div class="cr-ad-score-val">' + (cl.score||'—') + '/10</div></div>';
+      if (gp) html += '<div class="cr-ad-score-badge"><div class="cr-ad-score-label">GPT</div><div class="cr-ad-score-val">' + (gp.score||'—') + '/10</div></div>';
+      html += '</div>';
+      if (cl && cl.tips) cl.tips.slice(0,2).forEach(t => { html += '<div class="dual-tip">' + t + '</div>'; });
+      if (gp && gp.tips) gp.tips.slice(0,1).forEach(t => { html += '<div class="dual-tip" style="color:var(--info)">' + t + '</div>'; });
+      html += '</div>';
+    }
+    html += '</div></div>';
+  }
+
+  html += '</div>';
+  container.innerHTML = html;
+  lastCreativesData = data;
+}
+
+// Sobreescribir loadCreatives
+loadCreatives = async function() {
+  if (!S || !P) return;
+  const container = document.getElementById('cr-container');
+  if (!container) return;
+  container.innerHTML = '<div class="cr-loading"><span class="spinner"></span> Cargando creatividades...</div>';
+  try {
+    const r = await fetch('/api/' + S + '/creatives?password=' + encodeURIComponent(P) + '&period=' + crPeriod);
+    const data = await r.json();
+    if (data.error) { container.innerHTML = '<div class="cr-empty">⚠️ ' + data.error + '</div>'; return; }
+    renderCreativesEnhanced(data);
+  } catch(e) {
+    container.innerHTML = '<div class="cr-empty">Error: ' + e.message + '</div>';
+  }
+};
+
+
+</script>
+</body>
+</html>
