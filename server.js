@@ -1,0 +1,3569 @@
+require('dotenv').config();
+const express    = require('express');
+const fetch      = require('node-fetch');
+const path       = require('path');
+const fs         = require('fs');
+const cron       = require('node-cron');
+const { google } = require('googleapis');
+const { loadClientDB, verifyPassword, checkPassword, getMetaCredentials, updateMetaToken, getGoogleAdsAccountId, getGA4PropertyId, createClientRecord, setMetaCredentials, setGoogleAdsAccountId, setGA4PropertyId, updateClientRecord, getClientCredentialsSummary, supabase } = require('./db'); // Sub-pasos 3.1/3.2/3.3 — auth + credenciales vía Supabase
+const { fetchCampaignMetrics, normalizeToAdMetricsRows } = require('./google_ads'); // Fase 1 — conector Google Ads
+const { fetchGA4WeeklyMetrics, fetchGA4AcquisitionForDate, fetchGA4SiteMetricsForDate, fetchGA4TopPages, fetchGA4TopItems, fetchGA4FunnelCounts, GA4_FUNNEL_EVENTS } = require('./ga4'); // Integración GA4 — tráfico y eventos por semana (post-Fase 5)
+
+const app  = express();
+const PORT = process.env.PORT || 3000;
+const ANTHROPIC_KEY  = process.env.ANTHROPIC_API_KEY;
+const OPENAI_KEY     = process.env.OPENAI_API_KEY;
+const RESEND_KEY     = process.env.RESEND_API_KEY;
+const META_API_VER   = 'v23.0'; // v19 dado de baja por Meta (~feb-2026, 2 años desde su lanzamiento)
+const TZ             = process.env.TIMEZONE || 'America/Argentina/Buenos_Aires';
+const SHEET_ID       = process.env.GOOGLE_SHEET_ID;
+
+// ── GOOGLE SHEETS — LOGGER DE COSTOS IA ───────────────────────
+const AI_PRICES = {
+  'claude-haiku-4-5-20251001': { input: 0.80,  output: 4.00  },
+  'claude-sonnet-4-20250514':  { input: 3.00,  output: 15.00 },
+  'claude-sonnet-5':           { input: 3.00,  output: 15.00 },
+  'claude-opus-4-5':           { input: 15.00, output: 75.00 },
+  'gpt-4o-mini':               { input: 0.15,  output: 0.60  },
+};
+
+function calcCost(model, inputTokens, outputTokens) {
+  const p = AI_PRICES[model];
+  if (!p) return 0;
+  return (inputTokens / 1_000_000) * p.input + (outputTokens / 1_000_000) * p.output;
+}
+
+async function getSheetsClient() {
+  try {
+    const raw = process.env.GOOGLE_SERVICE_ACCOUNT || '{}';
+    const creds = JSON.parse(raw);
+    // Render a veces escapa las \n del private_key — las restauramos
+    if (creds.private_key) {
+      creds.private_key = creds.private_key.replace(/\\n/g, '\n');
+    }
+    if (!creds.client_email) {
+      console.error('[sheets] GOOGLE_SERVICE_ACCOUNT sin client_email — verificar variable de entorno');
+      return null;
+    }
+    console.log('[sheets] Autenticando como:', creds.client_email);
+    const auth = new google.auth.GoogleAuth({
+      credentials: creds,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+    });
+    return google.sheets({ version: 'v4', auth });
+  } catch(e) {
+    console.error('[sheets] Error auth:', e.message);
+    return null;
+  }
+}
+
+async function ensureSheetHeaders(sheets) {
+  try {
+    const res = await sheets.spreadsheets.values.get({
+      spreadsheetId: SHEET_ID,
+      range: 'Hoja 1!A1:J1',
+    });
+    if (!res.data.values || res.data.values.length === 0) {
+      await sheets.spreadsheets.values.update({
+        spreadsheetId: SHEET_ID,
+        range: 'Hoja 1!A1',
+        valueInputOption: 'RAW',
+        requestBody: { values: [['Fecha', 'Hora', 'Cliente', 'Modelo', 'Tipo de Llamado', 'Tokens Input', 'Tokens Output', 'Costo USD', 'Proveedor', 'Notas']] },
+      });
+    }
+  } catch(e) {
+    console.warn('[sheets] Error headers:', e.message);
+  }
+}
+
+async function logAiCall({ slug, model, callType, inputTokens, outputTokens, notes = '' }) {
+  if (!SHEET_ID) {
+    console.warn('[sheets] GOOGLE_SHEET_ID no configurado');
+    return;
+  }
+  try {
+    const sheets = await getSheetsClient();
+    if (!sheets) return;
+    await ensureSheetHeaders(sheets);
+    const now = new Date();
+    const fecha = now.toLocaleDateString('es-AR', { timeZone: TZ });
+    const hora  = now.toLocaleTimeString('es-AR', { timeZone: TZ, hour: '2-digit', minute: '2-digit' });
+    const costo = calcCost(model, inputTokens, outputTokens);
+    const proveedor = model.startsWith('gpt') ? 'OpenAI' : 'Anthropic';
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: SHEET_ID,
+      range: 'Hoja 1!A:J',
+      valueInputOption: 'USER_ENTERED',
+      requestBody: { values: [[fecha, hora, slug || 'sistema', model, callType, inputTokens, outputTokens, parseFloat(costo.toFixed(6)), proveedor, notes]] },
+    });
+    console.log(`[sheets] ✓ Logged: ${slug} | ${model} | ${callType} | in:${inputTokens} out:${outputTokens} | $${costo.toFixed(5)}`);
+  } catch(e) {
+    console.error('[sheets] Error logging:', e.message);
+  }
+}
+
+app.use(express.json({ limit: '5mb' }));
+app.use(express.static(path.join(__dirname, 'public')));
+
+// ── HELPERS ───────────────────────────────────────────────────
+// Alta de clientes (post-Fase 5, admin panel): ya no se lee de archivos.
+// Todo (colores, kpi_targets, dash_config, etc.) vive en la tabla
+// `clients` de Supabase — un cliente nuevo es un INSERT, sin deploy.
+async function loadClient(slug) {
+  if (!slug || !/^[a-z0-9-]+$/.test(slug)) return null;
+  const clientDB = await loadClientDB(slug);
+  if (!clientDB) return null;
+  return {
+    name: clientDB.name,
+    slug: clientDB.slug,
+    currency: clientDB.currency || 'ARS',
+    timezone: clientDB.timezone,
+    client_profile: clientDB.client_profile,
+    client_rubro: clientDB.client_rubro,
+    colorPrimary: clientDB.color_primary || '#c8f135',
+    colorAccent: clientDB.color_accent || '#a3c72c',
+    colorBtnText: clientDB.color_btn_text || '#0b0b0d',
+    email_alerts: clientDB.email_alerts || [],
+    report_hour: clientDB.report_hour,
+    kpi_targets: clientDB.kpi_targets || {},
+    alert_thresholds: clientDB.alert_thresholds || {},
+    excluded_metrics: clientDB.excluded_metrics || [],
+    custom_conversions: clientDB.custom_conversions || {},
+    dash_config: clientDB.dash_config || {},
+    report_email: clientDB.report_email || null,
+  };
+}
+
+// Sub-paso 3.3: mismo objeto que loadClient (colores, kpi_targets, etc.
+// ya vienen de Supabase), pero access_token / ad_account_id se pisan
+// con lo que hay en client_credentials, que es donde vive lo sensible.
+async function loadClientWithCreds(slug) {
+  const client = await loadClient(slug);
+  if (!client) return null;
+  const creds = await getMetaCredentials(slug);
+  if (creds) {
+    client.access_token = creds.access_token;
+    client.ad_account_id = creds.ad_account_id;
+  }
+  return client;
+}
+
+async function listClients() {
+  const { data, error } = await supabase.from('clients').select('slug').eq('active', true);
+  if (error) { console.error('[listClients] Error:', error.message); return []; }
+  return (data || []).map(c => c.slug);
+}
+
+// Sub-paso 3.4: saveData/loadHistory ahora escriben/leen en Supabase
+// (ad_metrics_daily), no en data/{slug}/{fecha}.json. El "data" que
+// se guarda por día sigue siendo el mismo objeto {date, metrics, analysis}
+// que ya usaba el resto del código — lo empaquetamos en extra_metrics
+// para no tener que rediseñar cada endpoint que lo consume.
+async function saveDataDB(slug, data) {
+  const clientDB = await loadClientDB(slug);
+  if (!clientDB) return false;
+  const acc = data.metrics?.account || {};
+  const row = {
+    client_id: clientDB.id,
+    source: 'meta',
+    date: data.date || today(),
+    campaign_id: null, // snapshot a nivel cuenta, igual que el sistema de archivos
+    campaign_name: null,
+    spend: acc.spend || 0,
+    impressions: acc.impressions || 0,
+    clicks: acc.clicks || 0,
+    ctr: acc.ctr ?? null,
+    cpm: acc.cpm ?? null,
+    roas: acc.roas ?? null,
+    frequency: acc.frequency ?? null,
+    conversions: acc.purchases || 0,
+    conversion_value: acc.revenue || 0,
+    extra_metrics: data, // objeto completo {date, metrics, analysis} — así ningún endpoint existente se rompe
+  };
+  const { error } = await supabase
+    .from('ad_metrics_daily')
+    .upsert(row, { onConflict: 'client_id,source,date,campaign_id' });
+  if (error) console.error(`[saveDataDB] Error guardando snapshot de ${slug}:`, error.message);
+  return !error;
+}
+
+async function loadHistoryDB(slug, days = 14) {
+  const clientDB = await loadClientDB(slug);
+  if (!clientDB) return [];
+  const { data, error } = await supabase
+    .from('ad_metrics_daily')
+    .select('date, extra_metrics')
+    .eq('client_id', clientDB.id)
+    .eq('source', 'meta')
+    .order('date', { ascending: false })
+    .limit(days);
+  if (error) { console.error(`[loadHistoryDB] Error leyendo historial de ${slug}:`, error.message); return []; }
+  // Devolvemos el objeto original {date, metrics, analysis} guardado en extra_metrics,
+  // igual forma que devolvía loadHistory() leyendo los archivos viejos.
+  return data.map(row => row.extra_metrics).filter(Boolean);
+}
+
+// Snapshot de HOY (equivalente a fs.existsSync(todayFile) + leerlo)
+async function getTodaySnapshotDB(slug) {
+  const clientDB = await loadClientDB(slug);
+  if (!clientDB) return null;
+  const { data, error } = await supabase
+    .from('ad_metrics_daily')
+    .select('extra_metrics')
+    .eq('client_id', clientDB.id)
+    .eq('source', 'meta')
+    .eq('date', today())
+    .is('campaign_id', null)
+    .maybeSingle();
+  if (error || !data) return null;
+  return data.extra_metrics;
+}
+
+// Actualizar SOLO una parte del snapshot de hoy (ej: analysis, followers)
+// sin pisar el resto — equivalente a leer/mergear/reescribir el JSON viejo.
+async function patchTodaySnapshotDB(slug, patch) {
+  const current = await getTodaySnapshotDB(slug);
+  if (!current) return false; // no hay snapshot de hoy, nada que parchear
+  const merged = { ...current, ...patch };
+  return saveDataDB(slug, merged);
+}
+
+function today() { return new Date().toISOString().slice(0, 10); }
+
+// ── META API ──────────────────────────────────────────────────
+async function metaFetch(path, token) {
+  const r = await fetch('https://graph.facebook.com/' + META_API_VER + path + '&access_token=' + token);
+  const d = await r.json();
+  if (d.error) throw new Error('Meta API: ' + d.error.message);
+  return d;
+}
+
+// ── HELPERS GLOBALES (usados en fetchAccountMetrics Y en /metrics) ──
+function getAction(actions, type) {
+  const a = (actions || []).find(a => a.action_type === type);
+  return a ? parseInt(a.value) : 0;
+}
+function getActionValue(actionValues, type) {
+  const a = (actionValues || []).find(a => a.action_type === type);
+  return a ? parseFloat(a.value) : 0;
+}
+
+function calcKpis(data) {
+  if (!data) return {};
+  const spend       = parseFloat(data.spend || 0);
+  const clicks      = parseInt(data.clicks || 0);
+  const impressions = parseInt(data.impressions || 0);
+  const reach       = parseInt(data.reach || 0);
+  const frequency   = parseFloat(data.frequency || 0);
+  const ctr         = parseFloat(data.ctr || 0);
+  const cpm         = parseFloat(data.cpm || 0);
+  const uniqueClicks= parseInt(data.unique_clicks || 0);
+  const uniqueCtr   = parseFloat(data.unique_ctr || 0);
+
+  const actions      = data.actions || [];
+  const actionValues = data.action_values || [];
+
+  // ── PIXEL (offsite) ──────────────────────────────────────
+  const pixelPurchase    = getAction(actions, 'offsite_conversion.fb_pixel_purchase');
+  const pixelAddToCart   = getAction(actions, 'offsite_conversion.fb_pixel_add_to_cart');
+  const pixelCheckout    = getAction(actions, 'offsite_conversion.fb_pixel_initiate_checkout');
+  const pixelViewContent = getAction(actions, 'offsite_conversion.fb_pixel_view_content');
+  const pixelSearch      = getAction(actions, 'offsite_conversion.fb_pixel_search');
+  const pixelWishlist    = getAction(actions, 'offsite_conversion.fb_pixel_add_to_wishlist');
+  const pixelReg         = getAction(actions, 'offsite_conversion.fb_pixel_complete_registration');
+  const pixelLead        = getAction(actions, 'offsite_conversion.fb_pixel_lead');
+  const pixelCustom      = getAction(actions, 'offsite_conversion.fb_pixel_custom');
+
+  // ── CONVERSIONES ONSITE (on-Facebook) ────────────────────
+  const onsitePurchase   = getAction(actions, 'onsite_conversion.purchase');
+  const onsiteAddToCart  = getAction(actions, 'onsite_conversion.add_to_cart');
+  const onsiteCheckout   = getAction(actions, 'onsite_conversion.checkout');
+  const donations        = getAction(actions, 'onsite_conversion.donate');
+
+  // ── COMPRAS CONSOLIDADAS (pixel + onsite + omni) ─────────
+  const purchases     = pixelPurchase || onsitePurchase ||
+                        getAction(actions, 'purchase') || getAction(actions, 'omni_purchase');
+  const purchaseValue = getActionValue(actionValues, 'offsite_conversion.fb_pixel_purchase') ||
+                        getActionValue(actionValues, 'purchase') ||
+                        getActionValue(actionValues, 'omni_purchase');
+
+  // ── CARRITO / CHECKOUT CONSOLIDADOS ──────────────────────
+  const addToCart        = pixelAddToCart || onsiteAddToCart || getAction(actions, 'add_to_cart');
+  const initiateCheckout = pixelCheckout  || onsiteCheckout  || getAction(actions, 'initiate_checkout');
+  const completeReg      = pixelReg || getAction(actions, 'complete_registration');
+
+  // ── LEADS ────────────────────────────────────────────────
+  const leads        = pixelLead || getAction(actions, 'lead');
+  const leadgenLeads = getAction(actions, 'onsite_conversion.lead_grouped') ||
+                       getAction(actions, 'leadgen_grouped');
+
+  // ── TRÁFICO / CLICKS ──────────────────────────────────────
+  const landingPageViews = getAction(actions, 'landing_page_view');
+  const linkClicks       = getAction(actions, 'link_click');
+  const outboundClicks   = getAction(actions, 'outbound_click');
+
+  // ── MENSAJERÍA ────────────────────────────────────────────
+  const messagingConn       = getAction(actions, 'onsite_conversion.total_messaging_connection');
+  const messagingFirstReply = getAction(actions, 'onsite_conversion.messaging_first_reply');
+  const messagingStarted7d  = getAction(actions, 'onsite_conversion.messaging_conversation_started_7d');
+  const msgDepth2           = getAction(actions, 'onsite_conversion.messaging_user_depth_2_message_send');
+  const msgDepth3           = getAction(actions, 'onsite_conversion.messaging_user_depth_3_message_send');
+  const msgDepth5           = getAction(actions, 'onsite_conversion.messaging_user_depth_5_message_send');
+
+  // ── VIDEO ─────────────────────────────────────────────────
+  const videoViews    = getAction(actions, 'video_view');
+  const videoViews3s  = videoViews; // video_view ya es 3s
+  // Fields directos de video (vienen fuera del array actions)
+  const videoViews10s = parseInt(data.video_10_sec_watched_actions?.[0]?.value || 0);
+  const videoViews15s = parseInt(data.video_15_sec_watched_actions?.[0]?.value || 0);
+  const videoViews30s = parseInt(data.video_30_sec_watched_actions?.[0]?.value || 0);
+  const videoAvgTime  = parseFloat(data.video_avg_time_watched_actions?.[0]?.value || 0);
+  const videoP25      = getAction(actions, 'video_p25_watched_actions');
+  const videoP50      = getAction(actions, 'video_p50_watched_actions');
+  const videoP75      = getAction(actions, 'video_p75_watched_actions');
+  const videoP95      = getAction(actions, 'video_p95_watched_actions');
+  const thruPlays     = getAction(actions, 'video_p100_watched_actions');
+
+  // ── ENGAGEMENT / SOCIAL ──────────────────────────────────
+  const postEngagement = getAction(actions, 'post_engagement');
+  const postReactions  = getAction(actions, 'post_reaction');
+  const postLikes      = getAction(actions, 'like');
+  const postComments   = getAction(actions, 'comment');
+  const postShares     = getAction(actions, 'share');
+  const pageEngagement = getAction(actions, 'page_engagement');
+  const postSaves      = getAction(actions, 'onsite_conversion.post_save') || getAction(actions, 'post_save');
+
+  // ── SEGUIDORES / PERFIL ──────────────────────────────────
+  const newFollowersPage = getAction(actions, 'follow');
+  const newFollowersIG   = getAction(actions, 'onsite_conversion.follow');
+  const igProfileVisits  = getAction(actions, 'ig_profile_visit') ||
+                           getAction(actions, 'onsite_conversion.instagram_profile_visit');
+
+  // ── KPIs CALCULADOS ───────────────────────────────────────
+  const conversions = purchases || leads || leadgenLeads || 0;
+  const roas  = spend > 0 && purchaseValue > 0 ? purchaseValue / spend : null;
+  const cpl   = spend > 0 && leads > 0 ? spend / leads : null;
+  const cpmsg = spend > 0 && messagingConn > 0 ? spend / messagingConn : null;
+
+  return {
+    spend, clicks, impressions, reach, frequency, ctr, cpm, uniqueClicks, uniqueCtr,
+    // Pixel
+    pixelPurchase, pixelAddToCart, pixelCheckout, pixelViewContent,
+    pixelSearch, pixelWishlist, pixelReg, pixelLead, pixelCustom,
+    // Onsite
+    onsitePurchase, onsiteAddToCart, onsiteCheckout, donations,
+    // Consolidados
+    purchases, purchaseValue, addToCart, initiateCheckout, completeReg,
+    leads, leadgenLeads,
+    // Tráfico
+    landingPageViews, linkClicks, outboundClicks,
+    // Mensajería
+    messagingConn, messagingFirstReply, messagingStarted7d,
+    msgDepth2, msgDepth3, msgDepth5,
+    // Video
+    videoViews, videoViews3s, videoViews10s, videoViews15s, videoViews30s,
+    videoP25, videoP50, videoP75, videoP95, thruPlays, videoAvgTime,
+    // Engagement
+    postEngagement, postReactions, postLikes, postComments, postShares,
+    pageEngagement, postSaves,
+    // Seguidores
+    newFollowersPage, newFollowersIG, igProfileVisits,
+    // KPIs
+    conversions, roas, cpl, cpmsg, revenue: purchaseValue,
+  };
+}
+
+// ── Meta Ads: métricas a nivel campaña para UNA fecha puntual ──
+// (liviano, sin adsets/ads/video — se usa solo para el cron diario
+// de "ayer", no para el dashboard interactivo que usa fetchAccountMetrics)
+async function fetchMetaCampaignMetricsForDate(accountId, token, dateStr) {
+  const fields = 'spend,impressions,clicks,ctr,cpm,frequency,actions,action_values,campaign_id,campaign_name';
+  const timeRange = encodeURIComponent(JSON.stringify({ since: dateStr, until: dateStr }));
+  const path = `/${accountId}/insights?fields=${fields}&time_range=${timeRange}&level=campaign&limit=100&`;
+  const result = await metaFetch(path, token);
+  return result.data || [];
+}
+
+// ── Mapear el resultado crudo de Meta (una fecha) a filas listas para ad_metrics_daily ──
+function normalizeMetaRowsForDate(clientId, dateStr, rawResults) {
+  return rawResults.map(cm => {
+    const kpis = calcKpis(cm);
+    return {
+      client_id: clientId,
+      source: 'meta',
+      date: dateStr,
+      campaign_id: cm.campaign_id ? String(cm.campaign_id) : null,
+      campaign_name: cm.campaign_name || null,
+      spend: kpis.spend || 0,
+      impressions: kpis.impressions || 0,
+      clicks: kpis.clicks || 0,
+      ctr: kpis.ctr ?? null,
+      cpm: kpis.cpm ?? null,
+      roas: kpis.roas ?? null,
+      frequency: kpis.frequency ?? null,
+      conversions: kpis.purchases || 0,
+      conversion_value: kpis.revenue || 0,
+      extra_metrics: null, // el snapshot "rico" (con analysis, adsets, etc.) sigue viniendo de saveDataDB — esto es solo el respaldo histórico de campaña por día
+    };
+  });
+}
+
+async function fetchAccountMetrics(client) {
+  const token = client.access_token;
+  const accountId = client.ad_account_id;
+
+  const fieldsBase = [
+    'spend','impressions','clicks','ctr','cpm','reach','frequency',
+    'actions','action_values','unique_clicks','unique_ctr'
+  ].join(',');
+
+  const videoFields = ',video_10_sec_watched_actions,video_15_sec_watched_actions,video_30_sec_watched_actions,video_avg_time_watched_actions';
+  const fieldsWithVideo = fieldsBase + videoFields;
+
+  // Helper: intenta con video fields, si falla usa base
+  const fetchInsights = async (path, useVideo=true) => {
+    const fields = useVideo ? fieldsWithVideo : fieldsBase;
+    const url = path.replace('__FIELDS__', fields);
+    try {
+      const result = await metaFetch(url, token);
+      console.log('[fetchInsights] OK:', url.substring(0,80), '→', result.data?.length, 'rows');
+      return result;
+    } catch(e) {
+      if (useVideo) {
+        console.log('[fetchInsights] Video fields fallaron, reintentando sin video:', e.message);
+        const fallbackUrl = path.replace('__FIELDS__', fieldsBase);
+        try {
+          const result = await metaFetch(fallbackUrl, token);
+          console.log('[fetchInsights] Fallback OK:', result.data?.length, 'rows');
+          return result;
+        } catch(e2) {
+          console.error('[fetchInsights] Fallback también falló:', e2.message);
+          return { data: [] };
+        }
+      }
+      console.error('[fetchInsights] Error sin video:', e.message, '|', url.substring(0,80));
+      return { data: [] };
+    }
+  };
+
+  const [accountData, campaignData, campaignStatus, adsetData, adData] = await Promise.all([
+    fetchInsights('/' + accountId + '/insights?fields=__FIELDS__&date_preset=last_7d&level=account&', true),
+    fetchInsights('/' + accountId + '/insights?fields=__FIELDS__,campaign_id,campaign_name&date_preset=last_7d&level=campaign&limit=50&', true),
+    metaFetch('/' + accountId + '/campaigns?fields=id,name,effective_status,status,objective&limit=50&', token).catch(e => { console.error('campaigns:', e.message); return {data:[]}; }),
+    fetchInsights('/' + accountId + '/insights?fields=__FIELDS__,adset_id,adset_name,campaign_name&date_preset=last_7d&level=adset&sort=spend_descending&limit=30&', false),
+    fetchInsights('/' + accountId + '/insights?fields=ad_id,ad_name,adset_id,adset_name,campaign_name,__FIELDS__&date_preset=last_7d&level=ad&sort=spend_descending&limit=25&', false),
+  ]);
+
+  // Mapa de estado real + objetivo por campaign_id
+  const campaignStatusMap = {};
+  (campaignStatus.data || []).forEach(c => {
+    campaignStatusMap[c.id] = {
+      status: c.effective_status || c.status || 'UNKNOWN',
+      objective: c.objective || ''
+    };
+  });
+
+  // Mapa de learning_stage por adset — fetchear separado
+  let adsetLearningMap = {};
+  try {
+    const adsetStatusData = await metaFetch(
+      '/' + accountId + '/adsets?fields=id,effective_status,learning_stage_info&limit=100&',
+      token
+    );
+    (adsetStatusData.data || []).forEach(a => {
+      adsetLearningMap[a.id] = {
+        status: a.effective_status,
+        learning: a.learning_stage_info
+      };
+    });
+  } catch(e) { /* fallback silencioso */ }
+
+  // Usar funciones globales (definidas fuera de fetchAccountMetrics)
+
+
+  const accountRaw = accountData.data?.[0] || {};
+  const accountKpis = { ...calcKpis(accountRaw), _raw: accountRaw };
+
+  const campaignList = (campaignData.data || []).map(cm => {
+    const kpis = calcKpis(cm);
+    const campInfo = campaignStatusMap[cm.campaign_id] || {};
+    return {
+      id: cm.campaign_id, name: cm.campaign_name,
+      status: campInfo.status || 'ACTIVE',
+      objective: campInfo.objective || '',
+      _actions: filterActions(cm.actions),
+      ...kpis,
+      phase: detectPhase(kpis)
+    };
+  });
+  const adsetList = (adsetData.data || []).map(a => {
+    const kpis = calcKpis(a);
+    const adsetInfo = adsetLearningMap[a.adset_id] || {};
+    const phase = detectPhaseReal(kpis, adsetInfo.learning);
+    return {
+      id: a.adset_id, name: a.adset_name, campaignName: a.campaign_name,
+      status: adsetInfo.status || 'ACTIVE',
+      _actions: filterActions(a.actions),
+      ...kpis, phase,
+      fatigueScore: calcFatigue(kpis)
+    };
+  });
+  const adList = (adData.data || []).map(ad => {
+    const kpis = calcKpis(ad);
+    return {
+      id: ad.ad_id, name: ad.ad_name,
+      adsetName: ad.adset_name, campaignName: ad.campaign_name,
+      _actions: filterActions(ad.actions),
+      ...kpis,
+      fatigueScore: calcFatigue(kpis)
+    };
+  });
+
+  return {
+    date: today(),
+    account: accountKpis,
+    campaigns: campaignList,
+    adsets: adsetList,
+    ads: adList,
+  };
+}
+
+// ── WHITELIST DE ACTION TYPES VÁLIDOS (sin app events) ───────
+const VALID_ACTION_TYPES = new Set([
+  // Pixel offsite (web)
+  'offsite_conversion.fb_pixel_purchase',
+  'offsite_conversion.fb_pixel_add_to_cart',
+  'offsite_conversion.fb_pixel_initiate_checkout',
+  'offsite_conversion.fb_pixel_add_payment_info',
+  'offsite_conversion.fb_pixel_add_shipping_info',
+  'offsite_conversion.fb_pixel_view_content',
+  'offsite_conversion.fb_pixel_search',
+  'offsite_conversion.fb_pixel_add_to_wishlist',
+  'offsite_conversion.fb_pixel_complete_registration',
+  'offsite_conversion.fb_pixel_add_payment_info',
+  'offsite_conversion.fb_pixel_lead',
+  'offsite_conversion.fb_pixel_custom',
+  // Onsite (on-Facebook)
+  'onsite_conversion.purchase',
+  'onsite_conversion.add_to_cart',
+  'onsite_conversion.checkout',
+  'onsite_conversion.donate',
+  'onsite_conversion.flow_complete',
+  'onsite_conversion.post_save',
+  'onsite_conversion.lead_grouped',
+  // Mensajería
+  'onsite_conversion.total_messaging_connection',
+  'onsite_conversion.messaging_first_reply',
+  'onsite_conversion.messaging_conversation_started_7d',
+  'onsite_conversion.messaging_user_depth_2_message_send',
+  'onsite_conversion.messaging_user_depth_3_message_send',
+  'onsite_conversion.messaging_user_depth_5_message_send',
+  'onsite_conversion.messaging_block',
+  'onsite_conversion.messaging_user_subscribed',
+  // Leads
+  'lead',
+  'leadgen_grouped',
+  'onsite_conversion.lead_grouped',
+  // Tráfico
+  'link_click',
+  'outbound_click',
+  'landing_page_view',
+  // Video
+  'video_view',
+  'video_view_3s',
+  'video_view_10s',
+  'video_view_15s',
+  'video_view_30s',
+  'video_p25_watched_actions',
+  'video_p50_watched_actions',
+  'video_p75_watched_actions',
+  'video_p95_watched_actions',
+  'video_p100_watched_actions',
+  // Engagement / Social
+  'post_engagement',
+  'page_engagement',
+  'post_reaction',
+  'like',
+  'comment',
+  'post',
+  'share',
+  'photo_view',
+  'rsvp',
+  'checkin',
+  'onsite_conversion.post_save',
+  // Seguidores / Perfil
+  'follow',
+  'onsite_conversion.follow',
+  'ig_profile_visit',
+  'onsite_conversion.instagram_profile_visit',
+  // Donaciones
+  'donate_total',
+  'donate_website',
+  'donate_on_facebook',
+  // Contacto / Llamadas
+  'contact_total',
+  'contact_website',
+  'click_to_call_call_confirm',
+  'click_to_call_native_call_placed',
+  // Conversiones estándar agrupadas
+  'omni_purchase',
+  'omni_add_to_cart',
+  'omni_complete_registration',
+  'omni_view_content',
+  'omni_search',
+  'omni_initiated_checkout',
+  // Otras conversiones web
+  'find_location_total',
+  'find_location_website',
+  'schedule_total',
+  'schedule_website',
+  'start_trial_total',
+  'start_trial_website',
+  'submit_application_total',
+  'submit_application_website',
+  'submit_application_on_facebook',
+  'subscribe_total',
+  'subscribe_website',
+  'donate_website',
+  'customize_product_total',
+  'customize_product_website',
+]);
+
+function filterActions(actions) {
+  return (actions || []).filter(a => VALID_ACTION_TYPES.has(a.action_type));
+}
+
+function detectPhaseReal(kpis, learningInfo) {
+  // Usar el estado real del algoritmo que devuelve Meta
+  if (learningInfo) {
+    const status = learningInfo.status;
+    if (status === 'LEARNING') return 'learning';
+    if (status === 'LEARNING_LIMITED') return 'learning_limited';
+  }
+  // Fallback: detectar por métricas si no hay learningInfo
+  return detectPhase(kpis);
+}
+
+function detectPhase(kpis) {
+  const frequency = kpis.frequency || 0;
+  const ctr       = kpis.ctr       || 0;
+  const spend     = kpis.spend     || 0;
+  // Sin datos suficientes no podemos determinar la fase
+  if (spend === 0) return 'unknown';
+  if (frequency > 3.5 || ctr < 0.5) return 'fatigue';
+  return 'stable';
+}
+
+function calcFatigue(kpis) {
+  let score = 0;
+  if (kpis.frequency > 4) score += 40;
+  else if (kpis.frequency > 3) score += 20;
+  if (kpis.ctr < 0.5) score += 30;
+  else if (kpis.ctr < 1.0) score += 15;
+  if (kpis.cpm > 200) score += 20;
+  return Math.min(score, 100);
+}
+
+// ── MEMORIA AUTOMÁTICA DEL CLIENTE ───────────────────────────
+async function generateDailySummary(client, metricsData, analysis) {
+  const acc = metricsData.account || {};
+  const camps = metricsData.campaigns || [];
+
+  const prompt = `Sos un analista de Paid Media. Generá un resumen diario MUY CONCISO (máx 3 líneas) de las campañas de Meta Ads del cliente "${client.name}" para guardar como memoria histórica.
+
+DATOS DEL DÍA (${today()}):
+- Gasto: $${Math.round(acc.spend||0)} | Impresiones: ${acc.impressions||0} | CTR: ${(acc.ctr||0).toFixed(2)}%
+- CPM: $${Math.round(acc.cpm||0)} | Frecuencia: ${(acc.frequency||0).toFixed(1)} | ROAS: ${acc.roas?acc.roas.toFixed(2)+'x':'N/A'}
+- Mensajes: ${acc.messagingConn||0} | Leads: ${acc.leads||0} | Compras: ${acc.purchases||0}
+- Health score: ${analysis.health_score||0}/100
+- Campañas en aprendizaje: ${camps.filter(c=>c.phase==='learning'||c.phase==='learning_limited').length}
+- Campañas en fatiga: ${camps.filter(c=>c.phase==='fatigue').length}
+- Acciones recomendadas: ${(analysis.recommendations||[]).slice(0,2).map(r=>r.action).join(' / ')}
+
+Respondé SOLO con un JSON así (sin markdown):
+{"resumen": "1-2 oraciones sobre el estado general y lo más importante del día", "acciones": "acciones concretas recomendadas o aplicadas", "alertas": "problemas críticos detectados o vacío si no hay"}`;
+
+  try {
+    const r = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 300, messages: [{ role: 'user', content: prompt }] })
+    });
+    const d = await r.json();
+    logAiCall({ slug: client.slug, model: 'claude-haiku-4-5-20251001', callType: 'memory_summary', inputTokens: d.usage?.input_tokens || 0, outputTokens: d.usage?.output_tokens || 0 }).catch(()=>{});
+    const text = d.content?.[0]?.text || '';
+    const parsed = JSON.parse(text.replace(/```json|```/g, '').trim());
+    return { fecha: today(), ...parsed };
+  } catch(e) {
+    console.warn('[memory] Error generando resumen:', e.message);
+    return {
+      fecha: today(),
+      resumen: `Gasto $${Math.round(acc.spend||0)}, CTR ${(acc.ctr||0).toFixed(2)}%, score ${analysis.health_score||0}/100.`,
+      acciones: (analysis.recommendations||[]).slice(0,1).map(r=>r.action).join('') || '',
+      alertas: (analysis.alerts||[]).filter(a=>a.type==='critical').map(a=>a.message).join('') || '',
+    };
+  }
+}
+
+// Sub-paso 3.5: la memoria del análisis IA pasa de client.memory (JSON)
+// a la tabla ai_insights. iso_year/iso_week se calculan a partir de la
+// fecha del resumen (misma lógica que usó migrate_to_supabase.js).
+function getIsoWeekOfDate(date) {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const dayNum = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  const weekNo = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+  return { isoYear: d.getUTCFullYear(), isoWeek: weekNo };
+}
+
+async function saveClientMemory(slug, entry) {
+  try {
+    const clientDB = await loadClientDB(slug);
+    if (!clientDB) return;
+    const d = new Date(entry.fecha + 'T12:00:00Z');
+    const { isoYear, isoWeek } = getIsoWeekOfDate(d);
+    const row = {
+      client_id: clientDB.id,
+      period_type: 'week',
+      iso_year: isoYear,
+      iso_week: isoWeek,
+      module: 'meta_ads',
+      insight_type: 'diagnosis',
+      source_model: 'claude',
+      content: {
+        resumen: entry.resumen,
+        acciones: entry.acciones,
+        alertas: entry.alertas,
+        fecha_original: entry.fecha,
+      },
+    };
+    // Evitar duplicados del mismo día: borramos el insight de esa fecha si ya existía
+    await supabase
+      .from('ai_insights')
+      .delete()
+      .eq('client_id', clientDB.id)
+      .eq('module', 'meta_ads')
+      .eq('insight_type', 'diagnosis')
+      .eq('content->>fecha_original', entry.fecha);
+    const { error } = await supabase.from('ai_insights').insert(row);
+    if (error) throw error;
+    console.log(`[memory] Guardado resumen del ${entry.fecha} para ${slug}`);
+  } catch(e) {
+    console.error('[memory] Error guardando:', e.message);
+  }
+}
+
+async function loadClientMemory(slug) {
+  const clientDB = await loadClientDB(slug);
+  if (!clientDB) return [];
+  const { data, error } = await supabase
+    .from('ai_insights')
+    .select('content')
+    .eq('client_id', clientDB.id)
+    .eq('module', 'meta_ads')
+    .eq('insight_type', 'diagnosis')
+    .order('content->>fecha_original', { ascending: true })
+    .limit(60);
+  if (error) { console.error('[memory] Error leyendo:', error.message); return []; }
+  return data.map(row => ({
+    fecha: row.content.fecha_original,
+    resumen: row.content.resumen,
+    acciones: row.content.acciones,
+    alertas: row.content.alertas,
+  }));
+}
+
+function formatMemoryForPrompt(memory) {
+  if (!memory || memory.length === 0) return '';
+  const recent = memory.slice(-14); // últimos 14 días
+  const lines = recent.map(m =>
+    `• ${m.fecha}: ${m.resumen}${m.acciones ? ' | Acciones: ' + m.acciones : ''}${m.alertas ? ' | ⚠️ ' + m.alertas : ''}`
+  ).join('\n');
+  return `\nHISTORIAL DEL CLIENTE (${recent.length} días registrados):\n${lines}\nUsá este historial para detectar tendencias, evaluar si las acciones anteriores funcionaron y contextualizar el análisis de hoy.\n`;
+}
+async function runAnalysis(client, metricsData) {
+  const history = await loadHistoryDB(client.slug || 'demo', 7);
+  const memory  = await loadClientMemory(client.slug || 'demo');
+  const targets = client.kpi_targets || {};
+  const objKpis = targets.obj_kpis || {};
+  const analysisBase = targets.analysis_base || '';
+  const clientProfile = targets.client_profile || '';
+
+  // ── PERFILES DE CLIENTE ──────────────────────────────────────
+  const clientRubro = targets.client_rubro || '';
+  const customConversions = targets.custom_conversions || [];
+  const excludedMetrics = targets.excluded_metrics || [];
+
+  const PROFILES = {
+    ecommerce: {
+      nombre: 'eCommerce — Tienda online',
+      foco: 'ROAS, CPA, valor de conversiones y embudo pixel (vista → carrito → checkout → compra). Cada campaña puede tener objetivo distinto (prospecting, remarketing, awareness) pero el norte siempre es el ROAS global.',
+      metricas_principales: 'ROAS, CPA, Compras, Valor de conversiones, Checkout iniciado, Al carrito, V.Contenido pixel',
+      metricas_ignorar: 'No mencionar depth de mensajería como KPI principal. Campañas de awareness dentro de un ecommerce son válidas — no penalizarlas por no convertir directo.',
+      benchmarks: 'ROAS >2x mínimo viable, >4x saludable. CTR feed 1-3%. Frecuencia prospecting máx 3.5, remarketing hasta 5. Add to cart rate >5% del alcance es bueno. Checkout rate >50% del carrito es saludable.',
+      acciones_prioritarias: 'Escalar conjuntos ROAS positivo, pausar anuncios con fatigaScore >75, optimizar embudo pixel, separar prospecting de remarketing en campañas distintas.',
+    },
+    servicios_leads: {
+      nombre: 'Empresa de servicios — Leads y Mensajería',
+      foco: 'Generación de leads y mensajes calificados para cerrar ventas offline. El cierre sucede fuera de Meta — Meta solo abre la conversación.',
+      metricas_principales: 'Conexiones de mensajería, Costo por mensaje, Depth 2/3/5, CPL, Leads, Primeras respuestas',
+      metricas_ignorar: 'NO mencionar ROAS ni pixel de compras — este cliente no tiene ecommerce. No evaluar valor de conversiones monetarias. El "éxito" es la conversación iniciada, no la compra.',
+      benchmarks: 'Depth 5 / Conexiones >25% indica conversaciones profundas de calidad. Depth 2 / Conexiones >65% mínimo. Costo por mensaje evaluar contra ticket del servicio (si servicio vale $50k, pagar $3k por mensaje es razonable). Frecuencia frío máx 3, retargeting hasta 4.',
+      acciones_prioritarias: 'Mejorar hooks para aumentar tasa de apertura de chat, optimizar horarios de entrega según respuesta comercial, segmentar por intención, evaluar si el equipo responde los mensajes a tiempo.',
+    },
+    productos_sin_ecommerce: {
+      nombre: 'Productos sin eCommerce — Venta offline o local',
+      foco: 'Tráfico calificado, mensajes de consulta y visitas a local. El cliente vende productos físicos pero sin tienda online — Meta genera el contacto inicial.',
+      metricas_principales: 'Clics, Vistas de landing, Mensajes, CPC, CTR, Alcance local',
+      metricas_ignorar: 'NO evaluar ROAS de compras online — no aplica. No penalizar por falta de pixel de conversión si el modelo es offline.',
+      benchmarks: 'CTR >1.5% saludable para tráfico frío. CPC comparar contra margen del producto. Frecuencia máx 3 para audiencias frías. Mensajes evaluar contra costo de adquisición del cliente.',
+      acciones_prioritarias: 'Optimizar copy y creatividad para generar consultas, usar objetivo de mensajes o tráfico según canal de cierre, segmentar por zona geográfica si es local, testear formatos de catálogo sin compra online.',
+    },
+    ong: {
+      nombre: 'ONG / Causa social — Donaciones y Concientización',
+      foco: 'Donaciones generadas, alcance de la causa, engagement con contenido de impacto y construcción de comunidad comprometida.',
+      metricas_principales: 'Donaciones (custom events), Costo por donación, Alcance, Compartidos, Guardados, Engagement, Nuevos seguidores',
+      metricas_ignorar: 'NO mencionar ROAS — no aplica para ONGs. No evaluar conversiones comerciales. No penalizar CPM alto si el mensaje llega a la audiencia correcta. Los compartidos orgánicos son especialmente valiosos.',
+      benchmarks: 'Compartidos >2% del alcance es excelente para una causa social. Engagement rate >5% indica contenido resonante. Costo por donación evaluar contra donación promedio histórica. Frecuencia puede llegar a 4-5 para mensajes de causa urgente.',
+      acciones_prioritarias: 'Amplificar contenido de alto impacto emocional, usar testimonios reales y datos concretos, crear lookalike de donantes actuales, optimizar landing de donación, testear urgencia vs impacto en el copy.',
+    },
+    marca: {
+      nombre: 'Marca / Awareness / Institucional',
+      foco: 'Construcción de marca, CPM eficiente, frecuencia óptima de recordación y alcance único máximo. El éxito es ser recordado.',
+      metricas_principales: 'Alcance único, CPM, Frecuencia, Impresiones, Engagement de marca, Nuevos seguidores',
+      metricas_ignorar: 'NO mencionar ROAS ni CPA como métricas de éxito. No penalizar CTR bajo — en awareness el objetivo es exposición, no clics. No esperar conversiones directas.',
+      benchmarks: 'CPM varía por mercado. Frecuencia ideal 2-4 para recordación. Alcance >15% del target en el período es bueno. CTR 0.3-0.8% es normal y esperado para awareness puro.',
+      acciones_prioritarias: 'Maximizar alcance único con presupuesto disponible, diversificar placements para menor CPM, usar video corto para mayor impacto, construir audiencias de remarketing para futura conversión.',
+    },
+    creador: {
+      nombre: 'Creador de contenido / Media / Comunidad',
+      foco: 'ThruPlays, retención de video, crecimiento de comunidad y engagement genuino con el contenido.',
+      metricas_principales: 'ThruPlays, Video 3s/25%/75%, Tiempo promedio de vista, Nuevos seguidores, Compartidos, Guardados',
+      metricas_ignorar: 'NO evaluar ROAS ni CPA como KPIs principales. No penalizar CTR bajo si las visualizaciones y retención son altas.',
+      benchmarks: 'Retención al 75% >20% es excelente. Drop 3s→10s >50% indica hook débil — la gente no llega al contenido. ThruPlay rate >15% saludable. Costo por seguidor evaluar contra valor de largo plazo del fan.',
+      acciones_prioritarias: 'Optimizar los primeros 3 segundos (hook visual + audio), testear miniaturas, usar subtítulos para retención en silencio, distribuir a lookalike de viewers de alto engagement, crear ciclo de contenido → comunidad → remarketing.',
+    },
+  };
+
+  const profile = PROFILES[clientProfile] || null;
+
+  const EXCLUSION_LABELS = {
+    roas: 'ROAS ni retorno sobre inversión publicitaria',
+    compras: 'compras, conversiones de compra ni valor de conversiones del pixel',
+    mensajeria: 'mensajería, WhatsApp, Messenger, depth de conversación ni conexiones de mensajería',
+    video: 'ThruPlays, retención de video, reproducciones ni métricas de video',
+    leads: 'leads, CPL ni costo por lead',
+    engagement: 'engagement, reacciones, comentarios ni interacciones con publicaciones',
+    seguidores: 'nuevos seguidores ni crecimiento de comunidad',
+    trafico: 'tráfico, clics de salida ni vistas de landing page',
+  };
+
+  const exclusionSection = excludedMetrics.length > 0
+    ? `\nMÉTRICAS PROHIBIDAS — NO MENCIONAR BAJO NINGÚN CONCEPTO:\n${excludedMetrics.map(e => `  ❌ NO hablar de ${EXCLUSION_LABELS[e] || e}`).join('\n')}\nEstas métricas no aplican al modelo de negocio de este cliente. Si aparecen en los datos, ignoralas completamente. No las analices, no las menciones, no hagas recomendaciones sobre ellas.\n`
+    : '';
+
+  const rubroSection = clientRubro ? `\nRUBRO Y CONTEXTO DEL NEGOCIO: ${clientRubro}\n` : '';
+
+  const customConvSection = customConversions.length > 0
+    ? `\nCONVERSIONES PERSONALIZADAS DE ESTE CLIENTE:\n${customConversions.map(c=>`  "${c.key}" = ${c.label}`).join('\n')}\nCuando veas estos action types en los datos, nombralos como "${customConversions.map(c=>c.label).join('", "')}" en tu análisis — no uses el nombre técnico.\n`
+    : '';
+
+  // Sección de perfil para el prompt
+  const profileSection = profile ? `
+## PERFIL DEL NEGOCIO: ${profile.nombre.toUpperCase()}
+Este es el contexto más importante. TODA tu respuesta debe estar alineada con este perfil.
+${rubroSection}
+FOCO DEL ANÁLISIS: ${profile.foco}
+MÉTRICAS QUE MÁS IMPORTAN: ${profile.metricas_principales}
+RESTRICCIONES OBLIGATORIAS: ${profile.metricas_ignorar}
+BENCHMARKS PARA ESTE TIPO DE NEGOCIO: ${profile.benchmarks}
+ACCIONES TÍPICAS PARA ESTE PERFIL: ${profile.acciones_prioritarias}
+${customConvSection}${exclusionSection}
+IMPORTANTE: Las campañas individuales pueden tener distintos objetivos (alcance, tráfico, conversiones) — analizá cada una según su objetivo específico, pero siempre en el contexto del negocio definido arriba.
+` : `
+## PERFIL DEL NEGOCIO: NO CONFIGURADO
+${rubroSection}
+El tipo de negocio no fue configurado. Analizá con criterio general. Incluí en el resumen una recomendación para configurar el perfil del cliente en KPIs & Objetivos para obtener análisis más precisos.
+${customConvSection}${exclusionSection}
+`;
+
+  // Construir sección de KPIs por objetivo
+  const objLabels = {
+    conv: '🛒 Conversiones / Ventas',
+    msg: '💬 Mensajería / Leads',
+    trafico: '🌐 Tráfico',
+    alcance: '📢 Alcance / Awareness',
+    video: '🎬 Video / Reproducciones',
+    eng: '⭐ Engagement / Interacción',
+  };
+  const kpiLines = Object.entries(objKpis)
+    .filter(([,v]) => v && v.length > 0)
+    .map(([k,v]) => `  ${objLabels[k]||k}: ${v.join(' → ')}`);
+
+  const mainKpisSection = kpiLines.length > 0
+    ? `\nKPIs NUMÉRICOS CONFIGURADOS POR OBJETIVO:\n${kpiLines.join('\n')}\n`
+    : '';
+
+  const memorySection = formatMemoryForPrompt(memory);
+
+  const system = `Sos un experto en Paid Media con especialización profunda en Meta Ads y el algoritmo Andromeda/Advantage+.
+${profileSection}
+## Algoritmo Meta Andromeda
+- Fases: Aprendizaje (<50 conv/semana), Estabilización, Fatiga
+- Advantage+: Meta optimiza automáticamente audiencias, placements y creatividades
+- Fatiga creativa: frecuencia >3.5 señal temprana, >4.5 crítico
+- Subasta: bid + presupuesto + calidad del anuncio determinan el delivery
+- En aprendizaje: NO pausar ni editar — el algoritmo necesita mínimo 50 conversiones para salir
+
+## Relaciones entre métricas (aplicar según perfil del cliente)
+- CPM alto + CTR bajo → creatividad débil o audiencia saturada
+- Muchos clics + pocas conversiones → problema post-click
+- Frecuencia alta + CTR cayendo → fatiga creativa avanzada
+- CTR saludable: feed 1-3%, stories/reels >1.5%
+
+## Formato de respuesta
+Respondé SIEMPRE en JSON válido, sin markdown, sin texto fuera del JSON.
+Cada campo de análisis debe ser un ARRAY DE ITEMS, no un texto largo.
+Esto es crítico para el renderizado visual del dashboard.${excludedMetrics.length > 0 ? `
+
+## REGLA ABSOLUTA — MÉTRICAS BLOQUEADAS
+${excludedMetrics.map(e => `❌ PROHIBIDO mencionar "${EXCLUSION_LABELS[e] || e}" en cualquier parte de tu respuesta.`).join('\n')}
+Esto incluye títulos, detalles, recomendaciones, conclusiones y alertas. Si el dato aparece en los números, ignoralo. No es relevante para este cliente.` : ''}`;
+
+  // Base de análisis del cliente
+  const analysisBaseSection = analysisBase
+    ? `\nCONTEXTO ESPECÍFICO DEL CLIENTE:\n${analysisBase}\nTené en cuenta este contexto en todo el análisis.\n`
+    : '';
+
+  const acc = metricsData.account || {};
+  const camps = metricsData.campaigns || [];
+  const adsets = metricsData.adsets || [];
+  const ads = metricsData.ads || [];
+
+  // Filtros dinámicos según métricas excluidas
+  const excl = new Set(excludedMetrics);
+  const noRoas     = excl.has('roas');
+  const noCompras  = excl.has('compras');
+  const noMsg      = excl.has('mensajeria');
+  const noVideo    = excl.has('video');
+  const noLeads    = excl.has('leads');
+  const noEngage   = excl.has('engagement');
+  const noSegs     = excl.has('seguidores');
+  const noTrafico  = excl.has('trafico');
+
+  // Construir métricas de cuenta filtrando excluidas
+  const acctLines = [
+    `Gasto: $${Math.round(acc.spend||0)} | Impresiones: ${acc.impressions||0} | Alcance: ${acc.reach||0}`,
+    `CTR: ${(acc.ctr||0).toFixed(2)}% | CPM: $${Math.round(acc.cpm||0)} | Frecuencia: ${(acc.frequency||0).toFixed(1)}`,
+    !noRoas     ? `ROAS: ${acc.roas ? acc.roas.toFixed(2)+'x' : 'N/A'}` : null,
+    !noMsg      ? `Mensajería: ${acc.messagingConn||0} conexiones | ${acc.messagingFirstReply||0} primeras respuestas | Costo x msg: $${Math.round(acc.cpmsg||0)}` : null,
+    !noLeads    ? `Leads: ${acc.leads||0}` : null,
+    !noCompras  ? `Compras: ${acc.purchases||0} | Valor compras: $${Math.round(acc.purchaseValue||0)}` : null,
+    !noSegs     ? `Nuevos seguidores: ${acc.newFollowersPage||0} (pág) + ${acc.newFollowersIG||0} (IG)` : null,
+    !noEngage   ? `Compartidos: ${acc.postShares||0} | Guardados: ${acc.postSaves||0} | Engagement: ${acc.postEngagement||0}` : null,
+    !noVideo    ? `Video views: ${acc.videoViews||0} | ThruPlays: ${acc.thruPlays||0}` : null,
+    !noTrafico  ? `Vistas de landing: ${acc.landingPageViews||0} | Clics salida: ${acc.outboundClicks||0}` : null,
+  ].filter(Boolean).join('\n');
+
+  // Construir datos de campañas filtrando excluidas
+  const campData = camps.slice(0,12).map(c => {
+    const row = { nombre: c.name, fase: c.phase, gasto: '$'+Math.round(c.spend||0), ctr: (c.ctr||0).toFixed(2)+'%', cpm: '$'+Math.round(c.cpm||0), freq: (c.frequency||0).toFixed(1) };
+    if(!noRoas)    row.roas = c.roas ? c.roas.toFixed(2)+'x' : 'N/A';
+    if(!noMsg)     row.mensajes = c.messagingConn||0;
+    if(!noLeads)   row.leads = c.leads||0;
+    if(!noCompras) row.compras = c.purchases||0;
+    return row;
+  });
+
+  const adsetData = adsets.slice(0,15).map(a => {
+    const row = { nombre: a.name, campana: a.campaignName, fase: a.phase, fatiga: a.fatigueScore, gasto: '$'+Math.round(a.spend||0), ctr: (a.ctr||0).toFixed(2)+'%', cpm: '$'+Math.round(a.cpm||0), freq: (a.frequency||0).toFixed(1) };
+    if(!noMsg)   row.mensajes = a.messagingConn||0;
+    if(!noLeads) row.leads = a.leads||0;
+    return row;
+  });
+
+  const prompt = `Analizá las campañas de Meta Ads para el cliente "${client.name}".
+${mainKpisSection}${analysisBaseSection}${memorySection}
+OBJETIVOS DEFINIDOS:
+${targets.target_roas && !noRoas ? '- ROAS mínimo: ' + targets.target_roas + 'x' : ''}
+${targets.target_ctr ? '- CTR mínimo: ' + targets.target_ctr + '%' : ''}
+${targets.target_cpm ? '- CPM máximo: $' + targets.target_cpm : ''}
+${targets.target_frequency ? '- Frecuencia máxima: ' + targets.target_frequency : ''}
+${targets.target_cpmsg && !noMsg ? '- Costo por mensaje máximo: $' + targets.target_cpmsg : ''}
+
+MÉTRICAS CUENTA (últimos 7 días):
+${acctLines}
+
+CAMPAÑAS (${camps.length}):
+${JSON.stringify(campData, null, 2)}
+
+CONJUNTOS DE ANUNCIOS / AUDIENCIAS (${adsets.length}):
+${JSON.stringify(adsetData, null, 2)}
+
+ANUNCIOS TOP (${ads.length}):
+${JSON.stringify(ads.slice(0,12).map(a=>{
+  const row = { nombre: a.name, conjunto: a.adsetName, fatiga: a.fatigueScore, gasto: '$'+Math.round(a.spend||0), ctr: (a.ctr||0).toFixed(2)+'%', freq: (a.frequency||0).toFixed(1) };
+  if(!noMsg)    row.mensajes = a.messagingConn||0;
+  if(!noEngage) { row.compartidos = a.postShares||0; row.guardados = a.postSaves||0; }
+  return row;
+}), null, 2)}
+
+${history.length > 1 ? 'TENDENCIA (' + history.length + ' días):\n' + JSON.stringify(history.map(h => {
+  const row = { date: h.date, spend: h.metrics?.account?.spend };
+  if(!noRoas) row.roas = h.metrics?.account?.roas;
+  if(!noMsg)  row.mensajes = h.metrics?.account?.messagingConn;
+  return row;
+}), null, 2) : ''}
+
+Respondé ÚNICAMENTE con este JSON (sin markdown):
+{
+  "summary_items": [
+    {"icon": "🔴|🟡|🟢|💡|⚠️", "titulo": "título corto", "detalle": "1-2 oraciones"}
+  ],
+  "algorithm_phase": "learning|stable|fatigue|mixed",
+  "algorithm_items": [
+    {"icon": "📊|⚠️|✅|🔄", "titulo": "título", "detalle": "explicación"}
+  ],
+  "health_score": 0-100,
+  "critical_campaigns": [
+    {"name": "nombre", "issue": "problema con datos concretos", "action": "acción concreta"}
+  ],
+  "adset_insights": [
+    {"icon": "🔴|🟡|🟢|💡", "titulo": "nombre del conjunto o audiencia", "detalle": "análisis de esa audiencia y recomendación"}
+  ],
+  "creative_items": [
+    {"icon": "🔴|🟡|🟢|💡", "titulo": "nombre del anuncio", "detalle": "estado, fatiga y recomendación"}
+  ],
+  "recommendations": [
+    {"priority": 1, "action": "acción concreta", "impact": "alto|medio|bajo", "detail": "por qué y cómo", "campana": "nombre o 'cuenta'"}
+  ],
+  "conclusion_items": [
+    {"icon": "✅|🎯|📈|⚡", "titulo": "punto clave", "detalle": "detalle accionable"}
+  ],
+  "alerts": [
+    {"type": "warning|critical", "metric": "nombre", "current": "valor", "target": "objetivo", "message": "mensaje"}
+  ]
+}`;
+
+  const r = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
+    body: JSON.stringify({ model: 'claude-opus-4-5', max_tokens: 6000, system, messages: [{ role: 'user', content: prompt }] })
+  });
+  const d = await r.json();
+  if (!r.ok) throw new Error(d.error?.message || 'Error Claude');
+  logAiCall({ slug: client.slug || 'sistema', model: 'claude-opus-4-5', callType: 'dashboard_analysis', inputTokens: d.usage?.input_tokens || 0, outputTokens: d.usage?.output_tokens || 0 }).catch(()=>{});
+  const text = d.content.map(b => b.text || '').join('');
+  try {
+    return JSON.parse(text.replace(/```json|```/g, '').trim());
+  } catch {
+    // Intentar recuperar JSON parcial completándolo
+    try {
+      const partial = text.replace(/```json|```/g, '').trim();
+      // Contar llaves y corchetes abiertos para cerrar el JSON
+      let fixed = partial;
+      const opens = (partial.match(/\{/g)||[]).length - (partial.match(/\}/g)||[]).length;
+      const openArr = (partial.match(/\[/g)||[]).length - (partial.match(/\]/g)||[]).length;
+      for(let i=0;i<openArr;i++) fixed += ']';
+      for(let i=0;i<opens;i++) fixed += '}';
+      return JSON.parse(fixed);
+    } catch {
+      return {
+        summary_items: [{icon:'⚠️', titulo:'Análisis incompleto', detalle:'El análisis se generó pero el JSON quedó truncado. Intentá actualizar nuevamente.'}],
+        health_score: 50, recommendations: [], alerts: [], critical_campaigns: [],
+        algorithm_items: [], creative_items: [], adset_insights: [], conclusion_items: []
+      };
+    }
+  }
+}
+
+// ── EMAIL ─────────────────────────────────────────────────────
+
+// ── EMAIL ─────────────────────────────────────────────────────
+// ── PIPELINE COMPLETO ─────────────────────────────────────────
+async function runPipeline(slug) {
+  const client = await loadClientWithCreds(slug);
+  if (!client) throw new Error('Cliente no encontrado: ' + slug);
+  client.slug = slug;
+
+  console.log('[' + new Date().toISOString() + '] Procesando ' + client.name + '...');
+
+  let metrics, analysis;
+  try {
+    metrics = await fetchAccountMetrics(client);
+  } catch(e) {
+    console.error('Error Meta API:', e.message);
+    // Usar datos de demo si falla la API
+    metrics = generateDemoMetrics();
+  }
+
+  analysis = await runAnalysis(client, metrics);
+  // Guardar resumen en memoria del cliente (async)
+  generateDailySummary(client, metrics, analysis)
+    .then(entry => saveClientMemory(slug, entry))
+    .catch(e => console.warn('[memory] Error:', e.message));
+  const result = { date: today(), metrics, analysis };
+  await saveDataDB(slug, result);
+  return result;
+}
+
+function generateDemoMetrics() {
+  return {
+    date: today(),
+    account: { spend: 45230, impressions: 892000, clicks: 12400, ctr: 1.39, cpm: 50.70, reach: 234000, frequency: 2.8, conversions: 87, revenue: 189400, roas: 4.19, cpa: 520 },
+    campaigns: [
+      { id: '1', name: 'Campaña Conversiones — Temporada', spend: 28000, ctr: 1.6, cpm: 45, roas: 5.2, cpa: 420, conversions: 66, frequency: 2.1, phase: 'stable' },
+      { id: '2', name: 'Remarketing — Visitantes Web', spend: 12000, ctr: 0.8, cpm: 85, roas: 2.8, cpa: 780, conversions: 15, frequency: 4.2, phase: 'fatigue' },
+      { id: '3', name: 'Tráfico Frío — Lookalike', spend: 5230, ctr: 1.1, cpm: 38, roas: null, cpa: null, conversions: 6, frequency: 1.3, phase: 'learning' }
+    ],
+    ads: [
+      { id: 'a1', name: 'Video bota lifestyle bar', campaignName: 'Conversiones', spend: 15000, ctr: 2.1, frequency: 1.8, fatigueScore: 10 },
+      { id: 'a2', name: 'Carrusel 3 productos', campaignName: 'Conversiones', spend: 9000, ctr: 1.4, frequency: 2.3, fatigueScore: 25 },
+      { id: 'a3', name: 'Foto producto fondo blanco', campaignName: 'Remarketing', spend: 8000, ctr: 0.6, frequency: 5.1, fatigueScore: 75 },
+    ]
+  };
+}
+
+// ── RENOVACIÓN AUTOMÁTICA DE TOKENS META ─────────────────────
+const META_APP_ID     = process.env.META_APP_ID;
+const META_APP_SECRET = process.env.META_APP_SECRET;
+
+async function renewTokenIfNeeded(slug) {
+  if (!META_APP_ID || !META_APP_SECRET) return;
+  const clientDB = await loadClientDB(slug);
+  const creds = await getMetaCredentials(slug);
+  if (!clientDB || !creds || !creds.access_token) return;
+
+  try {
+    // Verificar estado del token con Meta Debug API
+    const debugUrl = `https://graph.facebook.com/debug_token?input_token=${creds.access_token}&access_token=${META_APP_ID}|${META_APP_SECRET}`;
+    const r = await fetch(debugUrl);
+    const d = await r.json();
+    const tokenData = d.data;
+
+    if (!tokenData || !tokenData.is_valid) {
+      console.log(`[TOKEN] Token de ${slug} inválido — intentando renovar...`);
+    } else {
+      const expiresAt = tokenData.expires_at; // timestamp Unix
+      const daysLeft  = expiresAt ? Math.floor((expiresAt - Date.now()/1000) / 86400) : 999;
+      console.log(`[TOKEN] ${slug}: válido, vence en ${daysLeft} días`);
+
+      // Solo renovar si vence en menos de 15 días o ya expiró
+      if (daysLeft > 15) return;
+      console.log(`[TOKEN] ${slug}: renovando token (${daysLeft} días restantes)...`);
+    }
+
+    // Renovar token
+    const renewUrl = `https://graph.facebook.com/oauth/access_token?grant_type=fb_exchange_token&client_id=${META_APP_ID}&client_secret=${META_APP_SECRET}&fb_exchange_token=${creds.access_token}`;
+    const rr = await fetch(renewUrl);
+    const rd = await rr.json();
+
+    if (!rr.ok || !rd.access_token) {
+      throw new Error(rd.error?.message || 'No se pudo renovar el token');
+    }
+
+    // Guardar token nuevo cifrado en Supabase (fuente de verdad desde el Sub-paso 3.3)
+    const saved = await updateMetaToken(slug, rd.access_token);
+    if (!saved) throw new Error('No se pudo guardar el token renovado en Supabase');
+    console.log(`[TOKEN] ${slug}: token renovado exitosamente ✓`);
+
+    // Notificar por email
+    if (clientDB.email_alerts?.length && process.env.EMAIL_USER) {
+      const transporter = createTransporter();
+      await transporter.sendMail({
+        from: `"Meta Intelligence | Docta Nexus" <${process.env.EMAIL_USER}>`,
+        to: clientDB.email_alerts.join(','),
+        subject: `✓ Token Meta renovado automáticamente — ${clientDB.name}`,
+        html: `<div style="font-family:sans-serif;max-width:500px;margin:0 auto;background:#0b0b0d;color:#edeef0;border-radius:12px;padding:24px">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+            <div style="width:32px;height:32px;background:#c8f135;border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:700;color:#0b0b0d">D</div>
+            <div style="font-weight:600">Meta Intelligence · Docta Nexus</div>
+          </div>
+          <div style="background:#151518;border-radius:8px;padding:16px;border-left:3px solid #5de8a0">
+            <div style="color:#5de8a0;font-weight:600;margin-bottom:8px">✓ Token renovado automáticamente</div>
+            <div style="color:#9a9aaa;font-size:13px;line-height:1.6">
+              El token de acceso de <strong style="color:#edeef0">${clientDB.name}</strong> fue renovado automáticamente.<br>
+              Válido por aproximadamente 60 días más.<br>
+              Fecha: ${new Date().toLocaleDateString('es-AR')}
+            </div>
+          </div>
+          <div style="text-align:center;margin-top:16px;font-size:11px;color:#52525c">
+            Meta Intelligence · <a href="https://doctanexus.com" style="color:#c8f135;text-decoration:none">Docta Nexus</a>
+          </div>
+        </div>`
+      }).catch(e => console.error('[TOKEN] Error enviando email:', e.message));
+    }
+
+  } catch(e) {
+    console.error(`[TOKEN] Error renovando token de ${slug}:`, e.message);
+    // Notificar el error por email
+    if (clientDB.email_alerts?.length && process.env.EMAIL_USER) {
+      const transporter = createTransporter();
+      await transporter.sendMail({
+        from: `"Meta Intelligence | Docta Nexus" <${process.env.EMAIL_USER}>`,
+        to: clientDB.email_alerts.join(','),
+        subject: `⚠️ Error renovando token Meta — ${clientDB.name} — acción requerida`,
+        html: `<div style="font-family:sans-serif;max-width:500px;margin:0 auto;background:#0b0b0d;color:#edeef0;border-radius:12px;padding:24px">
+          <div style="background:#151518;border-radius:8px;padding:16px;border-left:3px solid #f26d6d">
+            <div style="color:#f26d6d;font-weight:600;margin-bottom:8px">⚠️ Token de Meta requiere renovación manual</div>
+            <div style="color:#9a9aaa;font-size:13px;line-height:1.6">
+              No se pudo renovar automáticamente el token de <strong style="color:#edeef0">${clientDB.name}</strong>.<br>
+              Error: ${e.message}<br><br>
+              Renovalo manualmente desde <a href="https://developers.facebook.com/tools/explorer/" style="color:#c8f135">Graph API Explorer</a>.
+            </div>
+          </div>
+          <div style="text-align:center;margin-top:16px;font-size:11px;color:#52525c">
+            Meta Intelligence · <a href="https://doctanexus.com" style="color:#c8f135;text-decoration:none">Docta Nexus</a>
+          </div>
+        </div>`
+      }).catch(() => {});
+    }
+  }
+}
+
+// ── CRON: renovación de tokens cada 12 horas ──────────────────
+cron.schedule('0 */12 * * *', async () => {
+  console.log('[CRON] Verificando tokens de Meta...');
+  for (const slug of await listClients()) {
+    await renewTokenIfNeeded(slug).catch(e =>
+      console.error('[CRON] Error verificando token de ' + slug + ':', e.message)
+    );
+  }
+}, { timezone: TZ });
+
+// ── CRON: refresh diario de métricas de Google Ads ────────────
+// Corre una vez al día, a la madrugada, para tener el dato de "ayer"
+// ya cargado en Supabase cuando el equipo entra a revisar el dashboard.
+// Solo procesa clientes que tengan un Customer ID asociado (los que
+// no usan Google Ads simplemente no tienen fila en client_credentials
+// con source='google_ads', y se saltean solos).
+cron.schedule('0 6 * * *', async () => {
+  console.log('[CRON] Actualizando métricas de Google Ads...');
+  for (const slug of await listClients()) {
+    try {
+      const customerId = await getGoogleAdsAccountId(slug);
+      if (!customerId) continue; // este cliente no tiene Google Ads asociado
+
+      const clientDB = await loadClientDB(slug);
+      if (!clientDB) continue;
+
+      const dateStr = yesterday();
+      const raw = await fetchCampaignMetrics(customerId, dateStr);
+      const rows = normalizeToAdMetricsRows(clientDB.id, dateStr, raw);
+
+      if (rows.length > 0) {
+        const { error } = await supabase
+          .from('ad_metrics_daily')
+          .upsert(rows, { onConflict: 'client_id,source,date,campaign_id' });
+        if (error) throw new Error(error.message);
+      }
+      console.log(`[CRON] Google Ads OK: ${slug} (${rows.length} campañas)`);
+    } catch(e) {
+      console.error(`[CRON] Error Google Ads en ${slug}:`, e.message);
+    }
+  }
+}, { timezone: TZ });
+
+// ── CRON: refresh diario de métricas de Meta Ads ("ayer") ──────
+// Antes, Meta solo se guardaba en Supabase cuando alguien abría el
+// dashboard ese día (getTodaySnapshotDB / saveDataDB en runPipeline).
+// Si nadie entraba, ese día quedaba sin registro. Este cron asegura
+// que "ayer" siempre quede guardado a nivel campaña en ad_metrics_daily,
+// igual que ya pasa con Google Ads — así el motor de Intelligence
+// (WoW/YoY) y los análisis de IA siempre tienen base histórica real.
+// Nota: esto es un respaldo A NIVEL CAMPAÑA; el snapshot "rico" del
+// día (con adsets/ads/analysis) lo sigue generando runPipeline cuando
+// alguien entra al dashboard — no se pisan entre sí.
+cron.schedule('15 6 * * *', async () => {
+  console.log('[CRON] Actualizando métricas de Meta Ads (ayer)...');
+  const dateStr = yesterday();
+  for (const slug of await listClients()) {
+    try {
+      const client = await loadClientWithCreds(slug);
+      if (!client || !client.access_token || !client.ad_account_id) continue; // sin credenciales de Meta, se saltea
+
+      const clientDB = await loadClientDB(slug);
+      if (!clientDB) continue;
+
+      const raw = await fetchMetaCampaignMetricsForDate(client.ad_account_id, client.access_token, dateStr);
+      const rows = normalizeMetaRowsForDate(clientDB.id, dateStr, raw);
+
+      if (rows.length > 0) {
+        const { error } = await supabase
+          .from('ad_metrics_daily')
+          .upsert(rows, { onConflict: 'client_id,source,date,campaign_id' });
+        if (error) throw new Error(error.message);
+      }
+      console.log(`[CRON] Meta Ads OK: ${slug} (${rows.length} campañas)`);
+    } catch(e) {
+      console.error(`[CRON] Error Meta Ads en ${slug}:`, e.message);
+    }
+  }
+}, { timezone: TZ });
+
+// ── CRON: refresh diario de Usuarios y Canales de Adquisición + Métricas de Sitio (GA4) ──
+// Mismo criterio que los crons de Meta/Google Ads: asegura que "ayer"
+// siempre quede guardado, sin depender de que alguien abra la solapa
+// eCommerce ese día. Solo corre para clientes con GA4 asociado.
+cron.schedule('45 6 * * *', async () => {
+  console.log('[CRON] Sincronizando datos de Analytics (GA4)...');
+  const dateStr = yesterday();
+  for (const slug of await listClients()) {
+    try {
+      const propertyId = await getGA4PropertyId(slug);
+      if (!propertyId) continue; // sin GA4 asociado, se saltea
+      const rows = await syncGA4AcquisitionForDate(slug, dateStr);
+      console.log(`[CRON] GA4 Adquisición OK: ${slug} (${rows.length} canales)`);
+    } catch(e) {
+      console.error(`[CRON] Error GA4 Adquisición en ${slug}:`, e.message);
+    }
+    try {
+      const propertyId = await getGA4PropertyId(slug);
+      if (!propertyId) continue;
+      await syncGA4SiteMetricsForDate(slug, dateStr);
+      console.log(`[CRON] GA4 Métricas de sitio OK: ${slug}`);
+    } catch(e) {
+      console.error(`[CRON] Error GA4 Métricas de sitio en ${slug}:`, e.message);
+    }
+  }
+}, { timezone: TZ });
+
+// ── ENDPOINTS ─────────────────────────────────────────────────
+// Login
+// Sub-paso 3.1: la verificación de password ahora es contra Supabase
+// (password_hash, bcrypt). El resto de los datos del cliente (colores,
+// kpi_targets, etc.) TODAVÍA se leen del JSON viejo — eso se unifica
+// en el sub-paso 3.2, para no tocar todo de una.
+// ── Panel de administración (/admin) — alta de clientes sin archivos ni deploy ──
+// IMPORTANTE: este bloque tiene que ir ANTES de cualquier ruta /api/:slug/...
+// de acá abajo. Express matchea rutas en orden de registro, y /api/:slug/login
+// matchea CUALQUIER path con esa forma — incluido /api/admin/login (tomando
+// "admin" como si fuera un slug de cliente). Si este bloque queda más abajo,
+// /api/admin/login nunca se ejecuta y responde 404 "Cliente no encontrado".
+function checkAdminPassword(password) {
+  return !!process.env.ADMIN_PASSWORD && password === process.env.ADMIN_PASSWORD;
+}
+
+app.post('/api/admin/login', (req, res) => {
+  const { password } = req.body;
+  if (!checkAdminPassword(password)) return res.status(401).json({ error: 'Contraseña incorrecta' });
+  res.json({ ok: true });
+});
+
+// Listado simple de clientes existentes, para el panel de admin
+app.get('/api/admin/clients', async (req, res) => {
+  const { password } = req.query;
+  if (!checkAdminPassword(password)) return res.status(401).json({ error: 'No autorizado' });
+  const { data, error } = await supabase
+    .from('clients')
+    .select('slug, name, currency, active, created_at')
+    .order('created_at', { ascending: false });
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ clients: data });
+});
+
+// Alta de un cliente nuevo — Datos generales
+app.post('/api/admin/clients', async (req, res) => {
+  const { password, name, slug, clientPassword, currency, timezone, colorPrimary, colorAccent, colorBtnText } = req.body;
+  if (!checkAdminPassword(password)) return res.status(401).json({ error: 'No autorizado' });
+  if (!name || !slug || !clientPassword) return res.status(400).json({ error: 'Faltan name, slug o clientPassword' });
+  if (!/^[a-z0-9-]+$/.test(slug)) return res.status(400).json({ error: 'El slug solo puede tener minúsculas, números y guiones' });
+
+  const existing = await loadClientDB(slug);
+  if (existing) return res.status(409).json({ error: `Ya existe un cliente con el slug "${slug}"` });
+
+  const created = await createClientRecord({ slug, name, password: clientPassword, currency, timezone, colorPrimary, colorAccent, colorBtnText });
+  if (!created) return res.status(500).json({ error: 'No se pudo crear el cliente' });
+  res.json({ ok: true, client: created });
+});
+
+// Traer UN cliente puntual con su estado de credenciales, para editarlo.
+// Nunca devuelve el access_token en sí — solo si está conectado y el ID de cuenta.
+app.get('/api/admin/clients/:slug', async (req, res) => {
+  const slug = req.params.slug;
+  const { password } = req.query;
+  if (!checkAdminPassword(password)) return res.status(401).json({ error: 'No autorizado' });
+  const clientDB = await loadClientDB(slug);
+  if (!clientDB) return res.status(404).json({ error: 'Cliente no encontrado' });
+  const creds = await getClientCredentialsSummary(slug);
+  res.json({
+    client: {
+      slug: clientDB.slug, name: clientDB.name, currency: clientDB.currency,
+      color_primary: clientDB.color_primary, color_accent: clientDB.color_accent, color_btn_text: clientDB.color_btn_text,
+      active: clientDB.active,
+    },
+    credentials: creds,
+  });
+});
+
+// Editar datos generales de un cliente ya existente
+app.put('/api/admin/clients/:slug', async (req, res) => {
+  const slug = req.params.slug;
+  const { password, name, clientPassword, currency, colorPrimary, colorAccent, colorBtnText, active } = req.body;
+  if (!checkAdminPassword(password)) return res.status(401).json({ error: 'No autorizado' });
+  const ok = await updateClientRecord(slug, { name, clientPassword, currency, colorPrimary, colorAccent, colorBtnText, active });
+  if (!ok) return res.status(500).json({ error: 'No se pudo actualizar. Verificá que el slug exista.' });
+  res.json({ ok: true });
+});
+
+// Alta de un cliente — Datos de Meta (Ad Account ID + Access Token, se pegan a mano)
+app.post('/api/admin/clients/:slug/meta', async (req, res) => {
+  const slug = req.params.slug;
+  const { password, ad_account_id, access_token } = req.body;
+  if (!checkAdminPassword(password)) return res.status(401).json({ error: 'No autorizado' });
+  if (!ad_account_id || !access_token) return res.status(400).json({ error: 'Faltan ad_account_id o access_token' });
+  const ok = await setMetaCredentials(slug, ad_account_id, access_token);
+  if (!ok) return res.status(500).json({ error: 'No se pudo guardar. Verificá que el slug exista.' });
+  res.json({ ok: true });
+});
+
+// Alta de un cliente — Datos de Google Ads (Customer ID)
+app.post('/api/admin/clients/:slug/google-ads', async (req, res) => {
+  const slug = req.params.slug;
+  const { password, customer_id } = req.body;
+  if (!checkAdminPassword(password)) return res.status(401).json({ error: 'No autorizado' });
+  if (!customer_id) return res.status(400).json({ error: 'Falta customer_id' });
+  const ok = await setGoogleAdsAccountId(slug, customer_id);
+  if (!ok) return res.status(500).json({ error: 'No se pudo guardar. Verificá que el slug exista.' });
+  res.json({ ok: true });
+});
+
+// Alta de un cliente — Datos de Analytics (Property ID de GA4)
+app.post('/api/admin/clients/:slug/ga4', async (req, res) => {
+  const slug = req.params.slug;
+  const { password, property_id } = req.body;
+  if (!checkAdminPassword(password)) return res.status(401).json({ error: 'No autorizado' });
+  if (!property_id) return res.status(400).json({ error: 'Falta property_id' });
+  const ok = await setGA4PropertyId(slug, property_id);
+  if (!ok) return res.status(500).json({ error: 'No se pudo guardar. Verificá que el slug exista.' });
+  res.json({ ok: true });
+});
+
+// Sirve el panel de admin en /admin — también antes de las rutas de cliente
+app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin.html')));
+
+app.post('/api/:slug/login', async (req, res) => {
+  const slug = req.params.slug;
+  const { password } = req.body;
+
+  const clientDB = await loadClientDB(slug);
+  if (!clientDB) return res.status(404).json({ error: 'Cliente no encontrado' });
+
+  const ok = await verifyPassword(password, clientDB.password_hash);
+  if (!ok) return res.status(401).json({ error: 'Contraseña incorrecta' });
+
+  res.json({
+    ok: true,
+    name: clientDB.name,
+    colorPrimary: clientDB.color_primary || '#c8f135',
+    colorAccent: clientDB.color_accent || '#a3c72c',
+    colorBtnText: clientDB.color_btn_text || '#0b0b0d',
+    kpi_targets: clientDB.kpi_targets,
+    alert_config: clientDB.alert_thresholds,
+    dash_config: clientDB.dash_config,
+    currency: clientDB.currency || 'ARS'
+  });
+});
+
+// Obtener datos del dashboard (requiere auth via query param)
+app.get('/api/:slug/dashboard', async (req, res) => {
+  const slug = req.params.slug;
+  const client = await loadClient(slug);
+  if (!client) return res.status(404).json({ error: 'Cliente no encontrado' });
+  const { password } = req.query;
+  if (!(await checkPassword(slug, password))) return res.status(401).json({ error: 'No autorizado' });
+
+  try {
+    // Intentar cargar datos de hoy (Sub-paso 3.4: desde ad_metrics_daily)
+    let result = await getTodaySnapshotDB(slug);
+    if (!result) {
+      // Generar datos nuevos
+      result = await runPipeline(slug);
+    }
+    const history = await loadHistoryDB(slug, 14);
+    res.json({ ...result, history, currency: client.currency || 'ARS' });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Refrescar análisis manualmente
+app.post('/api/:slug/refresh', async (req, res) => {
+  const slug = req.params.slug;
+  const client = await loadClient(slug);
+  if (!client) return res.status(404).json({ error: 'Cliente no encontrado' });
+  const { password } = req.body;
+  if (!(await checkPassword(slug, password))) return res.status(401).json({ error: 'No autorizado' });
+  try {
+    const result = await runPipeline(slug);
+    const history = await loadHistoryDB(slug, 14);
+    res.json({ ...result, history, currency: client.currency || 'ARS' });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Refresh solo métricas (sin correr el agente — más rápido)
+app.post('/api/:slug/refresh-metrics', async (req, res) => {
+  const slug = req.params.slug;
+  const client = await loadClientWithCreds(slug);
+  if (!client) return res.status(404).json({ error: 'Cliente no encontrado' });
+  const { password } = req.body;
+  if (!(await checkPassword(slug, password))) return res.status(401).json({ error: 'No autorizado' });
+  try {
+    client.slug = slug;
+    const metrics = await fetchAccountMetrics(client);
+    // Cargar análisis previo si existe
+    const history = await loadHistoryDB(slug, 1);
+    const prevAnalysis = history[0]?.analysis || {};
+    const result = { date: today(), metrics, analysis: prevAnalysis };
+    await saveDataDB(slug, result);
+    res.json({ ...result, history: await loadHistoryDB(slug, 14), currency: client.currency || 'ARS' });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+function yesterday() {
+  const d = new Date();
+  d.setUTCDate(d.getUTCDate() - 1);
+  return d.toISOString().slice(0, 10);
+}
+
+// ── Semana ISO: a qué mes calendario pertenece (regla del jueves) ──
+// Misma lógica que migrate_to_supabase.js — la semana "pertenece" al
+// mes que contiene su jueves. Necesario porque las semanas ISO no
+// encajan limpio dentro de los meses calendario.
+function isoWeekThursdayMonth(isoYear, isoWeek) {
+  const thursday = isoWeekThursdayDate(isoYear, isoWeek);
+  return { month: thursday.getUTCMonth() + 1, year: thursday.getUTCFullYear() };
+}
+
+// Fase 2 — Funnel y Audiencias: carga manual semanal.
+// Guarda directo a nivel semana (no día), porque es carga manual —
+// nadie va a tipear un funnel completo todos los días.
+app.post('/api/:slug/funnel-weekly/save', async (req, res) => {
+  const slug = req.params.slug;
+  const clientDB = await loadClientDB(slug);
+  if (!clientDB) return res.status(404).json({ error: 'Cliente no encontrado' });
+  const { password, iso_year, iso_week, ...fields } = req.body;
+  if (!(await checkPassword(slug, password))) return res.status(401).json({ error: 'No autorizado' });
+
+  if (!iso_year || !iso_week) return res.status(400).json({ error: 'Falta iso_year o iso_week' });
+
+  try {
+    const { month, year } = isoWeekThursdayMonth(iso_year, iso_week);
+    const row = {
+      client_id: clientDB.id,
+      iso_year,
+      iso_week,
+      month_of_week: month,
+      year_of_week: year,
+      usuarios: fields.usuarios ?? null,
+      sesiones: fields.sesiones ?? null,
+      landing_views: fields.landing_views ?? null,
+      view_item: fields.view_item ?? null,
+      add_to_cart: fields.add_to_cart ?? null,
+      begin_checkout: fields.begin_checkout ?? null,
+      add_payment_info: fields.add_payment_info ?? null,
+      purchases: fields.purchases ?? null,
+      repeat_purchases: fields.repeat_purchases ?? null,
+      audience_data: fields.audience_data ?? {},
+      notes: fields.notes ?? null,
+      loaded_by: fields.loaded_by ?? null,
+      updated_at: new Date().toISOString(),
+    };
+    const { error } = await supabase
+      .from('funnel_weekly')
+      .upsert(row, { onConflict: 'client_id,iso_year,iso_week' });
+    if (error) throw new Error(error.message);
+    res.json({ ok: true, iso_year, iso_week, month_of_week: month });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Fase 2 — Historial de Funnel/Audiencias ya cargado
+app.get('/api/:slug/funnel-weekly/history', async (req, res) => {
+  const slug = req.params.slug;
+  const clientDB = await loadClientDB(slug);
+  if (!clientDB) return res.status(404).json({ error: 'Cliente no encontrado' });
+  const { password, weeks } = req.query;
+  if (!(await checkPassword(slug, password))) return res.status(401).json({ error: 'No autorizado' });
+
+  const { data, error } = await supabase
+    .from('funnel_weekly')
+    .select('*')
+    .eq('client_id', clientDB.id)
+    .order('iso_year', { ascending: false })
+    .order('iso_week', { ascending: false })
+    .limit(Number(weeks) || 12);
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ history: data });
+});
+
+// ── Integración GA4 — sincronizar tráfico y eventos de UNA semana ──
+// Trae los datos de Analytics para el lunes-a-domingo de esa semana ISO
+// (mismo criterio que period=week de Meta/Google) y los guarda en
+// funnel_weekly — la MISMA tabla que ya usaba la carga manual del
+// Fase 2, así el historial y el análisis de IA no necesitan tocarse.
+// loaded_by='ga4_sync' distingue estos registros de los cargados a mano.
+app.post('/api/:slug/ga4/sync-week', async (req, res) => {
+  const slug = req.params.slug;
+  const clientDB = await loadClientDB(slug);
+  if (!clientDB) return res.status(404).json({ error: 'Cliente no encontrado' });
+  const { password, iso_year, iso_week } = req.body;
+  if (!(await checkPassword(slug, password))) return res.status(401).json({ error: 'No autorizado' });
+  if (!iso_year || !iso_week) return res.status(400).json({ error: 'Falta iso_year o iso_week' });
+
+  try {
+    const propertyId = await getGA4PropertyId(slug);
+    if (!propertyId) return res.status(400).json({ error: 'Este cliente no tiene una propiedad de Google Analytics asociada.' });
+
+    const thursday = isoWeekThursdayDate(Number(iso_year), Number(iso_week));
+    const monday = new Date(thursday); monday.setUTCDate(thursday.getUTCDate() - 3);
+    const sunday = new Date(thursday); sunday.setUTCDate(thursday.getUTCDate() + 3);
+    const fmt = d => d.toISOString().split('T')[0];
+
+    const metrics = await fetchGA4WeeklyMetrics(propertyId, fmt(monday), fmt(sunday));
+    const { month, year } = isoWeekThursdayMonth(iso_year, iso_week);
+
+    const row = {
+      client_id: clientDB.id,
+      iso_year, iso_week,
+      month_of_week: month,
+      year_of_week: year,
+      usuarios: metrics.usuarios,
+      sesiones: metrics.sesiones,
+      landing_views: metrics.vistas_pagina,
+      view_item: metrics.view_item,
+      add_to_cart: metrics.add_to_cart,
+      begin_checkout: metrics.begin_checkout,
+      add_payment_info: metrics.add_payment_info,
+      purchases: metrics.purchases,
+      audience_data: { usuarios_nuevos: metrics.usuarios_nuevos, sesiones_comprometidas: metrics.sesiones_comprometidas },
+      loaded_by: 'ga4_sync',
+      updated_at: new Date().toISOString(),
+    };
+    const { error } = await supabase
+      .from('funnel_weekly')
+      .upsert(row, { onConflict: 'client_id,iso_year,iso_week' });
+    if (error) throw new Error(error.message);
+    res.json({ ok: true, iso_year, iso_week, metrics });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── Rediseño de Analytics en eCommerce — Usuarios y Canales de Adquisición ──
+// Guarda por canal y por DÍA (no por semana) en ga4_acquisition_daily, para
+// tener histórico diario real — el cron de abajo llama a esta misma lógica
+// todos los días para "ayer", y este endpoint permite además sincronizar
+// un día puntual a mano (para pruebas o para completar días salteados).
+async function syncGA4AcquisitionForDate(slug, dateStr) {
+  const clientDB = await loadClientDB(slug);
+  if (!clientDB) throw new Error('Cliente no encontrado');
+  const propertyId = await getGA4PropertyId(slug);
+  if (!propertyId) throw new Error('Este cliente no tiene una propiedad de Google Analytics asociada.');
+
+  const rows = await fetchGA4AcquisitionForDate(propertyId, dateStr);
+  const upsertRows = rows.map(r => ({
+    client_id: clientDB.id,
+    date: dateStr,
+    channel: r.channel,
+    sessions: r.sessions,
+    users: r.users,
+    avg_engagement_seconds: r.avg_engagement_seconds,
+    bounce_rate: r.bounce_rate,
+    purchases: r.purchases,
+    updated_at: new Date().toISOString(),
+  }));
+  if (upsertRows.length > 0) {
+    const { error } = await supabase
+      .from('ga4_acquisition_daily')
+      .upsert(upsertRows, { onConflict: 'client_id,date,channel' });
+    if (error) throw new Error(error.message);
+  }
+  return upsertRows;
+}
+
+app.post('/api/:slug/ga4/sync-acquisition-day', async (req, res) => {
+  const slug = req.params.slug;
+  const { password, date } = req.body;
+  if (!(await checkPassword(slug, password))) return res.status(401).json({ error: 'No autorizado' });
+  try {
+    const dateStr = date || yesterday();
+    const rows = await syncGA4AcquisitionForDate(slug, dateStr);
+    res.json({ ok: true, date: dateStr, rows });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Histórico agregado por canal para una semana ISO (suma los 7 días guardados)
+app.get('/api/:slug/ga4/acquisition-history', async (req, res) => {
+  const slug = req.params.slug;
+  const clientDB = await loadClientDB(slug);
+  if (!clientDB) return res.status(404).json({ error: 'Cliente no encontrado' });
+  const { password, period, iso_year, iso_week } = req.query;
+  if (!(await checkPassword(slug, password))) return res.status(401).json({ error: 'No autorizado' });
+
+  let since, until;
+  try { ({ since, until } = computeDateRangeForPeriod(period || '7d', iso_year, iso_week)); }
+  catch(e) { return res.status(400).json({ error: e.message }); }
+
+  const { data, error } = await supabase
+    .from('ga4_acquisition_daily')
+    .select('*')
+    .eq('client_id', clientDB.id)
+    .gte('date', since)
+    .lte('date', until);
+  if (error) return res.status(500).json({ error: error.message });
+
+  // Agregar por canal, sumando los días del período
+  const byChannel = {};
+  (data || []).forEach(r => {
+    if (!byChannel[r.channel]) byChannel[r.channel] = { channel: r.channel, sessions: 0, users: 0, purchases: 0, _engagementWeighted: 0, _bounceWeighted: 0 };
+    const c = byChannel[r.channel];
+    c.sessions += r.sessions || 0;
+    c.users += r.users || 0;
+    c.purchases += r.purchases || 0;
+    // Promediar tiempo de interacción y rebote ponderando por sesiones de ese día
+    c._engagementWeighted += (r.avg_engagement_seconds || 0) * (r.sessions || 0);
+    c._bounceWeighted += (r.bounce_rate || 0) * (r.sessions || 0);
+  });
+  const channels = Object.values(byChannel)
+    .map(c => ({
+      channel: c.channel,
+      sessions: c.sessions,
+      users: c.users,
+      avg_engagement_seconds: c.sessions ? +(c._engagementWeighted / c.sessions).toFixed(1) : 0,
+      bounce_rate: c.sessions ? +(c._bounceWeighted / c.sessions).toFixed(1) : 0,
+      purchases: c.purchases,
+      purchase_conversion_rate: c.sessions ? +(c.purchases / c.sessions * 100).toFixed(2) : 0,
+    }))
+    .sort((a, b) => b.sessions - a.sessions);
+  res.json({ channels, has_data: (data || []).length > 0 });
+});
+
+// ── Métricas de usuarios a nivel SITIO (Total usuarios, nuevos, engagement, rebote) ──
+// Mismo patrón que la adquisición por canal: se guarda por día vía cron para
+// tener histórico, y se agrega según el período elegido para mostrar en el panel.
+async function syncGA4SiteMetricsForDate(slug, dateStr) {
+  const clientDB = await loadClientDB(slug);
+  if (!clientDB) throw new Error('Cliente no encontrado');
+  const propertyId = await getGA4PropertyId(slug);
+  if (!propertyId) throw new Error('Este cliente no tiene una propiedad de Google Analytics asociada.');
+
+  const m = await fetchGA4SiteMetricsForDate(propertyId, dateStr);
+  const { error } = await supabase
+    .from('ga4_site_metrics_daily')
+    .upsert({
+      client_id: clientDB.id, date: dateStr,
+      total_users: m.total_users, new_users: m.new_users,
+      avg_engagement_seconds: m.avg_engagement_seconds, bounce_rate: m.bounce_rate,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'client_id,date' });
+  if (error) throw new Error(error.message);
+  return m;
+}
+
+app.post('/api/:slug/ga4/sync-site-metrics-day', async (req, res) => {
+  const slug = req.params.slug;
+  const { password, date } = req.body;
+  if (!(await checkPassword(slug, password))) return res.status(401).json({ error: 'No autorizado' });
+  try {
+    const dateStr = date || yesterday();
+    const m = await syncGA4SiteMetricsForDate(slug, dateStr);
+    res.json({ ok: true, date: dateStr, metrics: m });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get('/api/:slug/ga4/site-metrics-history', async (req, res) => {
+  const slug = req.params.slug;
+  const clientDB = await loadClientDB(slug);
+  if (!clientDB) return res.status(404).json({ error: 'Cliente no encontrado' });
+  const { password, period, iso_year, iso_week } = req.query;
+  if (!(await checkPassword(slug, password))) return res.status(401).json({ error: 'No autorizado' });
+
+  let since, until;
+  try { ({ since, until } = computeDateRangeForPeriod(period || '7d', iso_year, iso_week)); }
+  catch(e) { return res.status(400).json({ error: e.message }); }
+
+  const { data, error } = await supabase
+    .from('ga4_site_metrics_daily')
+    .select('*')
+    .eq('client_id', clientDB.id)
+    .gte('date', since)
+    .lte('date', until);
+  if (error) return res.status(500).json({ error: error.message });
+
+  if (!data || data.length === 0) return res.json({ has_data: false });
+  const totalUsers = data.reduce((a, r) => a + (r.total_users || 0), 0);
+  const newUsers = data.reduce((a, r) => a + (r.new_users || 0), 0);
+  const avgEngagement = +(data.reduce((a, r) => a + (r.avg_engagement_seconds || 0), 0) / data.length).toFixed(1);
+  const avgBounce = +(data.reduce((a, r) => a + (r.bounce_rate || 0), 0) / data.length).toFixed(1);
+  res.json({ has_data: true, total_users: totalUsers, new_users: newUsers, avg_engagement_seconds: avgEngagement, bounce_rate: avgBounce });
+});
+
+// ── Top URLs y Top Artículos — en vivo, para el período seleccionado (sin guardar histórico) ──
+app.get('/api/:slug/ga4/top-pages', async (req, res) => {
+  const slug = req.params.slug;
+  const { password, period, iso_year, iso_week } = req.query;
+  if (!(await checkPassword(slug, password))) return res.status(401).json({ error: 'No autorizado' });
+  try {
+    const propertyId = await getGA4PropertyId(slug);
+    if (!propertyId) return res.status(400).json({ error: 'Este cliente no tiene una propiedad de Google Analytics asociada.' });
+    const { since, until } = computeDateRangeForPeriod(period || '7d', iso_year, iso_week);
+    const pages = await fetchGA4TopPages(propertyId, since, until, 10);
+    res.json({ pages });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get('/api/:slug/ga4/top-items', async (req, res) => {
+  const slug = req.params.slug;
+  const { password, period, iso_year, iso_week } = req.query;
+  if (!(await checkPassword(slug, password))) return res.status(401).json({ error: 'No autorizado' });
+  try {
+    const propertyId = await getGA4PropertyId(slug);
+    if (!propertyId) return res.status(400).json({ error: 'Este cliente no tiene una propiedad de Google Analytics asociada.' });
+    const { since, until } = computeDateRangeForPeriod(period || '7d', iso_year, iso_week);
+    const items = await fetchGA4TopItems(propertyId, since, until, 10);
+    res.json({ items });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── FUNNEL ECOMMERCE — view_item → add_to_cart → begin_checkout → add_shipping_info → add_payment_info → purchase ──
+// En vivo para el período seleccionado, con tasa de conversión entre cada paso.
+app.get('/api/:slug/ga4/funnel', async (req, res) => {
+  const slug = req.params.slug;
+  const { password, period, iso_year, iso_week } = req.query;
+  if (!(await checkPassword(slug, password))) return res.status(401).json({ error: 'No autorizado' });
+  try {
+    const propertyId = await getGA4PropertyId(slug);
+    if (!propertyId) return res.status(400).json({ error: 'Este cliente no tiene una propiedad de Google Analytics asociada.' });
+    const { since, until } = computeDateRangeForPeriod(period || '7d', iso_year, iso_week);
+    const counts = await fetchGA4FunnelCounts(propertyId, since, until);
+    const steps = GA4_FUNNEL_EVENTS.map((event, i) => {
+      const count = counts[event] || 0;
+      const prevCount = i > 0 ? (counts[GA4_FUNNEL_EVENTS[i - 1]] || 0) : null;
+      const conversionFromPrev = (i > 0 && prevCount) ? +(count / prevCount * 100).toFixed(1) : null;
+      const conversionFromStart = (i > 0 && counts[GA4_FUNNEL_EVENTS[0]]) ? +(count / counts[GA4_FUNNEL_EVENTS[0]] * 100).toFixed(1) : null;
+      return { event, count, conversion_from_prev: conversionFromPrev, conversion_from_start: conversionFromStart };
+    });
+    res.json({ steps });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── Punto 3 (post-Fase 5) — Business/eCommerce SEMANAL ─────────
+// Carga manual semanal de los mismos 6 campos que la carga mensual,
+// para quienes quieren seguimiento más fino que mes a mes. Vive en
+// su propia tabla (business_metrics_weekly), separada de la mensual
+// (business_metrics_monthly) — no se pisan ni se derivan una de otra.
+app.post('/api/:slug/business-weekly/save', async (req, res) => {
+  const slug = req.params.slug;
+  const clientDB = await loadClientDB(slug);
+  if (!clientDB) return res.status(404).json({ error: 'Cliente no encontrado' });
+  const { password, iso_year, iso_week, ...fields } = req.body;
+  if (!(await checkPassword(slug, password))) return res.status(401).json({ error: 'No autorizado' });
+  if (!iso_year || !iso_week) return res.status(400).json({ error: 'Falta iso_year o iso_week' });
+
+  try {
+    const { month, year } = isoWeekThursdayMonth(iso_year, iso_week);
+    const row = {
+      client_id: clientDB.id,
+      iso_year,
+      iso_week,
+      month_of_week: month,
+      year_of_week: year,
+      facturacion: fields.facturacion ?? null,
+      pedidos: fields.pedidos ?? null,
+      tasa_conversion_ecommerce: fields.tasa_conversion_ecommerce ?? null,
+      clientes_nuevos: fields.clientes_nuevos ?? null,
+      clientes_recurrentes: fields.clientes_recurrentes ?? null,
+      notes: fields.notes ?? null,
+      loaded_by: fields.loaded_by ?? null,
+      updated_at: new Date().toISOString(),
+    };
+    const { error } = await supabase
+      .from('business_metrics_weekly')
+      .upsert(row, { onConflict: 'client_id,iso_year,iso_week' });
+    if (error) throw new Error(error.message);
+    res.json({ ok: true, iso_year, iso_week, month_of_week: month });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get('/api/:slug/business-weekly/history', async (req, res) => {
+  const slug = req.params.slug;
+  const clientDB = await loadClientDB(slug);
+  if (!clientDB) return res.status(404).json({ error: 'Cliente no encontrado' });
+  const { password, weeks } = req.query;
+  if (!(await checkPassword(slug, password))) return res.status(401).json({ error: 'No autorizado' });
+
+  const { data, error } = await supabase
+    .from('business_metrics_weekly')
+    .select('*')
+    .eq('client_id', clientDB.id)
+    .order('iso_year', { ascending: false })
+    .order('iso_week', { ascending: false })
+    .limit(Number(weeks) || 12);
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ history: data });
+});
+
+// ── Fase 3 — Business / eCommerce mensual ──────────────────────
+// Suma automática de inversión/venta por canal desde ad_metrics_daily
+// para un año/mes puntual (regla del jueves ya aplica en ad_metrics_daily
+// porque ahí se guarda por fecha real, así que agrupamos directo por
+// año/mes calendario de la columna `date`).
+async function sumChannelForMonth(clientId, source, year, month) {
+  const start = `${year}-${String(month).padStart(2, '0')}-01`;
+  const endMonth = month === 12 ? 1 : month + 1;
+  const endYear = month === 12 ? year + 1 : year;
+  const end = `${endYear}-${String(endMonth).padStart(2, '0')}-01`;
+
+  const { data, error } = await supabase
+    .from('ad_metrics_daily')
+    .select('spend, conversion_value')
+    .eq('client_id', clientId)
+    .eq('source', source)
+    .gte('date', start)
+    .lt('date', end);
+  if (error || !data) return { spend: 0, revenue: 0 };
+  return data.reduce((acc, r) => ({
+    spend: acc.spend + Number(r.spend || 0),
+    revenue: acc.revenue + Number(r.conversion_value || 0),
+  }), { spend: 0, revenue: 0 });
+}
+
+app.post('/api/:slug/business-monthly/save', async (req, res) => {
+  const slug = req.params.slug;
+  const clientDB = await loadClientDB(slug);
+  if (!clientDB) return res.status(404).json({ error: 'Cliente no encontrado' });
+  const { password, year, month, ...fields } = req.body;
+  if (!(await checkPassword(slug, password))) return res.status(401).json({ error: 'No autorizado' });
+  if (!year || !month) return res.status(400).json({ error: 'Falta year o month' });
+
+  try {
+    // Auto-cálculo de inversión/venta por canal desde ad_metrics_daily
+    const metaTotals = await sumChannelForMonth(clientDB.id, 'meta', year, month);
+    const googleTotals = await sumChannelForMonth(clientDB.id, 'google_ads', year, month);
+
+    const row = {
+      client_id: clientDB.id,
+      year, month,
+      facturacion: fields.facturacion ?? null,
+      pedidos: fields.pedidos ?? null,
+      inversion_meta_auto: metaTotals.spend,
+      inversion_meta_manual: fields.inversion_meta_manual ?? null,
+      inversion_google_auto: googleTotals.spend,
+      inversion_google_manual: fields.inversion_google_manual ?? null,
+      venta_meta_auto: metaTotals.revenue,
+      venta_meta_manual: fields.venta_meta_manual ?? null,
+      venta_google_auto: googleTotals.revenue,
+      venta_google_manual: fields.venta_google_manual ?? null,
+      tasa_conversion_ecommerce: fields.tasa_conversion_ecommerce ?? null,
+      margen_bruto_pct: fields.margen_bruto_pct ?? null,
+      margen_neto_pct: fields.margen_neto_pct ?? null,
+      costo_logistico: fields.costo_logistico ?? null,
+      costo_producto_promedio: fields.costo_producto_promedio ?? null,
+      objetivo_mensual: fields.objetivo_mensual ?? null,
+      roas_esperado: fields.roas_esperado ?? null,
+      cac_maximo: fields.cac_maximo ?? null,
+      stock_total: fields.stock_total ?? null,
+      productos_sin_stock: fields.productos_sin_stock ?? null,
+      nps: fields.nps ?? null,
+      cantidad_reclamos: fields.cantidad_reclamos ?? null,
+      tiempo_entrega_promedio_dias: fields.tiempo_entrega_promedio_dias ?? null,
+      cantidad_vendedores: fields.cantidad_vendedores ?? null,
+      clientes_nuevos: fields.clientes_nuevos ?? null,
+      clientes_recurrentes: fields.clientes_recurrentes ?? null,
+      extra_metrics: fields.extra_metrics ?? {},
+      notes: fields.notes ?? null,
+      loaded_by: fields.loaded_by ?? null,
+      updated_at: new Date().toISOString(),
+    };
+    const { error } = await supabase
+      .from('business_metrics_monthly')
+      .upsert(row, { onConflict: 'client_id,year,month' });
+    if (error) throw new Error(error.message);
+
+    res.json({ ok: true, year, month, inversion_meta_auto: metaTotals.spend, inversion_google_auto: googleTotals.spend });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── Fase 4.1 — Motor de correlación semanal (WoW / YoY / vs. objetivo) ──
+// Solo matemática determinística, sin IA — el agente experto (Sub-paso
+// 4.3) va a leer este resultado ya calculado, no datos crudos.
+
+function pctDelta(current, previous) {
+  if (previous === null || previous === undefined || previous === 0 || current === null) return null;
+  return +(((current - previous) / previous) * 100).toFixed(2);
+}
+
+function shiftIsoWeek(isoYear, isoWeek, deltaWeeks) {
+  const thursday = isoWeekThursdayDate(isoYear, isoWeek);
+  thursday.setUTCDate(thursday.getUTCDate() + deltaWeeks * 7);
+  return getIsoWeekOfDate(thursday);
+}
+
+function isoWeekThursdayDate(isoYear, isoWeek) {
+  const jan4 = new Date(Date.UTC(isoYear, 0, 4));
+  const jan4Day = jan4.getUTCDay() || 7;
+  const week1Monday = new Date(jan4);
+  week1Monday.setUTCDate(jan4.getUTCDate() - (jan4Day - 1));
+  const thursday = new Date(week1Monday);
+  thursday.setUTCDate(week1Monday.getUTCDate() + (isoWeek - 1) * 7 + 3);
+  return thursday;
+}
+
+// ── Rango de fechas para un período dado — mismo criterio que fetchMetricsByPeriod (Meta) ──
+// Se usa para unificar los filtros de la solapa Analytics (Ayer/7d/14d/Mes/Semana N)
+// con el resto del sistema. period='week' requiere isoYear/isoWeek.
+function computeDateRangeForPeriod(period, isoYear, isoWeek) {
+  const today = new Date();
+  const fmt = d => d.toISOString().split('T')[0];
+  const daysAgo = n => { const d = new Date(today); d.setUTCDate(today.getUTCDate() - n); return d; };
+  if (period === 'yesterday') {
+    const y = fmt(daysAgo(1));
+    return { since: y, until: y };
+  } else if (period === '14d') {
+    return { since: fmt(daysAgo(14)), until: fmt(daysAgo(1)) };
+  } else if (period === 'month') {
+    return { since: fmt(new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1))), until: fmt(daysAgo(1)) };
+  } else if (period === 'week') {
+    if (!isoYear || !isoWeek) throw new Error('Falta iso_year o iso_week para period=week');
+    const thursday = isoWeekThursdayDate(Number(isoYear), Number(isoWeek));
+    const monday = new Date(thursday); monday.setUTCDate(thursday.getUTCDate() - 3);
+    const sunday = new Date(thursday); sunday.setUTCDate(thursday.getUTCDate() + 3);
+    return { since: fmt(monday), until: fmt(sunday) };
+  }
+  // 7d default
+  return { since: fmt(daysAgo(7)), until: fmt(daysAgo(1)) };
+}
+
+// Agrupa filas de ad_metrics_daily por campaña (Tarea 2 — resumen de
+// campañas de Google Ads). Reusa filas ya traídas para la agregación de
+// cuenta, sin pegarle de nuevo a la API de Google. Ordenado por inversión
+// descendente, mismo criterio que el "Resumen Campañas" de Meta.
+function groupCampaignRows(rows) {
+  const byCampaign = {};
+  for (const row of rows) {
+    const id = row.campaign_id || 'sin-id';
+    if (!byCampaign[id]) {
+      byCampaign[id] = {
+        campaign_id: row.campaign_id, campaign_name: row.campaign_name || '(sin nombre)', status: null, _lastDate: null,
+        spend: 0, impressions: 0, clicks: 0, conversions: 0, conversion_value: 0,
+      };
+    }
+    const c = byCampaign[id];
+    c.spend += Number(row.spend || 0);
+    c.impressions += Number(row.impressions || 0);
+    c.clicks += Number(row.clicks || 0);
+    c.conversions += Number(row.conversions || 0);
+    c.conversion_value += Number(row.conversion_value || 0);
+    // El estado puede cambiar día a día — nos quedamos con el de la fila más reciente.
+    const rowStatus = row.extra_metrics?.campaign_status;
+    if (rowStatus && (!c._lastDate || row.date > c._lastDate)) { c.status = rowStatus; c._lastDate = row.date; }
+  }
+  return Object.values(byCampaign).map(({ _lastDate, ...c }) => ({
+    ...c,
+    ctr: c.impressions > 0 ? +(c.clicks / c.impressions * 100).toFixed(3) : null,
+    roas: c.spend > 0 ? +(c.conversion_value / c.spend).toFixed(3) : null,
+    cpa: c.conversions > 0 ? +(c.spend / c.conversions).toFixed(2) : null,
+  })).sort((a, b) => b.spend - a.spend);
+}
+
+// Promedio ponderado (por impresiones) de las 3 métricas de Search Impression
+// Share que Google Ads solo expone a nivel cuenta/campaña. Vienen como
+// fracción (0.15 = 15%) en extra_metrics — se devuelven ya en %. Si ninguna
+// fila trae el dato (p.ej. filas de Meta, o el fallback sin esos campos de
+// google_ads.js), el resultado queda en null en vez de 0 para no mentir.
+function aggregateSearchImpressionShare(rows) {
+  const KEYS = ['search_top_impression_share', 'search_absolute_top_impression_share', 'search_budget_lost_impression_share'];
+  const weighted = { search_top_impression_share: 0, search_absolute_top_impression_share: 0, search_budget_lost_impression_share: 0 };
+  const weight = { search_top_impression_share: 0, search_absolute_top_impression_share: 0, search_budget_lost_impression_share: 0 };
+  for (const row of rows) {
+    const em = row.extra_metrics || {};
+    const w = Number(row.impressions || 0);
+    if (w <= 0) continue;
+    for (const k of KEYS) {
+      if (em[k] != null) { weighted[k] += em[k] * w; weight[k] += w; }
+    }
+  }
+  const out = {};
+  for (const k of KEYS) out[k] = weight[k] > 0 ? +(weighted[k] / weight[k] * 100).toFixed(2) : null;
+  return out;
+}
+
+async function aggregateAdMetricsForWeek(clientId, isoYear, isoWeek) {
+  const { data, error } = await supabase
+    .from('ad_metrics_daily')
+    .select('source, spend, impressions, clicks, conversions, conversion_value, extra_metrics, campaign_id, campaign_name, date')
+    .eq('client_id', clientId)
+    .eq('iso_year', isoYear)
+    .eq('iso_week', isoWeek);
+  if (error || !data || !data.length) return {};
+
+  const bySource = {};
+  const rowsBySource = {};
+  for (const row of data) {
+    if (!bySource[row.source]) { bySource[row.source] = { spend: 0, impressions: 0, clicks: 0, conversions: 0, conversion_value: 0 }; rowsBySource[row.source] = []; }
+    const s = bySource[row.source];
+    s.spend += Number(row.spend || 0);
+    s.impressions += Number(row.impressions || 0);
+    s.clicks += Number(row.clicks || 0);
+    s.conversions += Number(row.conversions || 0);
+    s.conversion_value += Number(row.conversion_value || 0);
+    rowsBySource[row.source].push(row);
+  }
+  for (const src in bySource) {
+    const s = bySource[src];
+    s.ctr  = s.impressions > 0 ? +(s.clicks / s.impressions * 100).toFixed(3) : null;
+    s.cpc  = s.clicks > 0 ? +(s.spend / s.clicks).toFixed(2) : null;
+    s.cpm  = s.impressions > 0 ? +(s.spend / s.impressions * 1000).toFixed(2) : null;
+    s.roas = s.spend > 0 ? +(s.conversion_value / s.spend).toFixed(3) : null;
+    s.cpa  = s.conversions > 0 ? +(s.spend / s.conversions).toFixed(2) : null;
+    Object.assign(s, aggregateSearchImpressionShare(rowsBySource[src]));
+    s.campaigns = groupCampaignRows(rowsBySource[src]);
+  }
+  return bySource;
+}
+
+// Mismo cálculo de since/until que fetchMetricsByPeriod (Meta), para que
+// "Ayer/7d/14d/Mes" signifique lo mismo en Google Ads que en Meta.
+function dateRangeForPeriod(period) {
+  const today   = new Date();
+  const fmt     = d => d.toISOString().split('T')[0];
+  const daysAgo = n => { const d = new Date(today); d.setUTCDate(today.getUTCDate() - n); return d; };
+  if (period === 'yesterday') return { since: fmt(daysAgo(1)), until: fmt(daysAgo(1)) };
+  if (period === '14d')       return { since: fmt(daysAgo(14)), until: fmt(daysAgo(1)) };
+  if (period === 'month')     return { since: fmt(new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1))), until: fmt(daysAgo(1)) };
+  return { since: fmt(daysAgo(7)), until: fmt(daysAgo(1)) }; // 7d default
+}
+
+async function aggregateAdMetricsForDateRange(clientId, source, since, until) {
+  const { data, error } = await supabase
+    .from('ad_metrics_daily')
+    .select('spend, impressions, clicks, conversions, conversion_value, extra_metrics, campaign_id, campaign_name, date')
+    .eq('client_id', clientId)
+    .eq('source', source)
+    .gte('date', since)
+    .lte('date', until);
+  if (error) throw new Error(error.message);
+
+  const s = { spend: 0, impressions: 0, clicks: 0, conversions: 0, conversion_value: 0 };
+  for (const row of (data || [])) {
+    s.spend += Number(row.spend || 0);
+    s.impressions += Number(row.impressions || 0);
+    s.clicks += Number(row.clicks || 0);
+    s.conversions += Number(row.conversions || 0);
+    s.conversion_value += Number(row.conversion_value || 0);
+  }
+  s.ctr  = s.impressions > 0 ? +(s.clicks / s.impressions * 100).toFixed(3) : null;
+  s.cpc  = s.clicks > 0 ? +(s.spend / s.clicks).toFixed(2) : null;
+  s.cpm  = s.impressions > 0 ? +(s.spend / s.impressions * 1000).toFixed(2) : null;
+  s.roas = s.spend > 0 ? +(s.conversion_value / s.spend).toFixed(3) : null;
+  s.cpa  = s.conversions > 0 ? +(s.spend / s.conversions).toFixed(2) : null;
+  Object.assign(s, aggregateSearchImpressionShare(data || []));
+  s.campaigns = groupCampaignRows(data || []);
+  return s;
+}
+
+function buildSourceComparison(current, prev, yoy, targets) {
+  if (!current) return null;
+  const deltaBlock = (base) => base ? {
+    ...base,
+    delta_pct: {
+      spend: pctDelta(current.spend, base.spend),
+      roas: pctDelta(current.roas, base.roas),
+      ctr: pctDelta(current.ctr, base.ctr),
+      cpa: pctDelta(current.cpa, base.cpa),
+      conversions: pctDelta(current.conversions, base.conversions),
+    },
+  } : null;
+
+  return {
+    current,
+    wow: deltaBlock(prev),
+    yoy: deltaBlock(yoy),
+    vs_target: {
+      roas_min: targets.roas_min ?? null,
+      roas_status: (targets.roas_min != null && current.roas != null)
+        ? (current.roas >= targets.roas_min ? 'cumple' : 'por_debajo') : null,
+      cpa_max: targets.cpa_max ?? null,
+      cpa_status: (targets.cpa_max != null && current.cpa != null)
+        ? (current.cpa <= targets.cpa_max ? 'cumple' : 'por_encima') : null,
+      ctr_min: targets.ctr_min ?? null,
+      ctr_status: (targets.ctr_min != null && current.ctr != null)
+        ? (current.ctr >= targets.ctr_min ? 'cumple' : 'por_debajo') : null,
+    },
+  };
+}
+
+// ── Fase 4.2 — Señales de asistencia/halo entre canales ──────────
+// Compara la variación de un canal en la semana N contra la variación
+// del otro canal en la semana N+1. Si hay pocas semanas de datos,
+// el resultado indica "muestra_suficiente: false" en vez de forzar
+// una conclusión — es preferible no decir nada a inventar un patrón
+// con 1 o 2 semanas de historia.
+
+async function getWeeklySeries(clientId, source, endIsoYear, endIsoWeek, count) {
+  const weeks = [];
+  let cursor = { isoYear: endIsoYear, isoWeek: endIsoWeek };
+  for (let i = 0; i < count; i++) {
+    weeks.unshift(cursor);
+    cursor = shiftIsoWeek(cursor.isoYear, cursor.isoWeek, -1);
+  }
+  const series = [];
+  for (const w of weeks) {
+    const agg = await aggregateAdMetricsForWeek(clientId, w.isoYear, w.isoWeek);
+    series.push({ iso_year: w.isoYear, iso_week: w.isoWeek, data: agg[source] || null });
+  }
+  return series;
+}
+
+// Evalúa si el cambio de `metricA` en la semana N se repite en la
+// dirección de `metricB` en la semana N+1, a lo largo de toda la serie.
+function detectLaggedSignal(seriesA, seriesB, metricA, metricB) {
+  let pares = 0, coincidencias = 0;
+  const detalle = [];
+  for (let i = 1; i < seriesA.length - 1; i++) {
+    const aCurr = seriesA[i].data, aPrev = seriesA[i - 1].data;
+    const bCurr = seriesB[i].data, bNext = seriesB[i + 1].data;
+    if (!aCurr || !aPrev || !bCurr || !bNext) continue;
+
+    const deltaA = pctDelta(aCurr[metricA], aPrev[metricA]);
+    const deltaBNext = pctDelta(bNext[metricB], bCurr[metricB]);
+    if (deltaA === null || deltaBNext === null) continue;
+
+    pares++;
+    const mismaDireccion = (deltaA > 0 && deltaBNext > 0) || (deltaA < 0 && deltaBNext < 0);
+    if (mismaDireccion) coincidencias++;
+    detalle.push({
+      semana: `${seriesA[i].iso_year}-W${seriesA[i].iso_week}`,
+      delta_a: deltaA,
+      delta_b_semana_siguiente: deltaBNext,
+      coincide: mismaDireccion,
+    });
+  }
+  return {
+    pares_evaluados: pares,
+    coincidencias,
+    consistencia_pct: pares > 0 ? +(coincidencias / pares * 100).toFixed(1) : null,
+    muestra_suficiente: pares >= 3, // menos de 3 pares no alcanza para hablar de un patrón
+    detalle,
+  };
+}
+
+// ── Fase 4.3 — Agente experto Claude + GPT (generalización del patrón
+// "Andrómeda" de creativos a las 4 solapas: Meta, Google, eCommerce,
+// Transversal). Recibe SIEMPRE el contexto ya calculado por 4.1/4.2/
+// business-monthly — nunca datos crudos, para evitar alucinaciones
+// numéricas (mismo criterio que ya usamos en todo el proyecto).
+
+const SCOPE_LABELS = {
+  meta: 'Meta Ads',
+  google_ads: 'Google Ads',
+  ecommerce: 'eCommerce y rentabilidad de negocio',
+  transversal: 'estrategia integral de adquisición y negocio, cruzando Meta Ads, Google Ads y eCommerce',
+  ga4_metrics: 'tráfico y comportamiento del sitio en Google Analytics',
+  ga4_funnel: 'funnel de eCommerce en Google Analytics (conversión entre etapas)',
+};
+
+async function runExpertClaude(scope, contextText, slug) {
+  const prompt = `Sos un analista senior experto en eCommerce y paid media, especializado en ${SCOPE_LABELS[scope]}. Mirá los datos YA CALCULADOS a continuación (no recalcules nada, ya vienen resueltos) y dá tu diagnóstico desde el ángulo de RENTABILIDAD Y EFICIENCIA DE MEDIOS:
+
+${contextText}
+
+Respondé SOLO en JSON:
+{"diagnostico":"qué está pasando en 2-3 oraciones","causa_probable":"por qué probablemente está pasando","prioridad":"alta|media|baja","accion_recomendada":"la acción más importante a tomar"}`;
+
+  const r = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
+    body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 500, messages: [{ role: 'user', content: prompt }] })
+  });
+  const d = await r.json();
+  logAiCall({ slug, model: 'claude-haiku-4-5-20251001', callType: 'expert_analysis_claude_' + scope, inputTokens: d.usage?.input_tokens || 0, outputTokens: d.usage?.output_tokens || 0 }).catch(()=>{});
+  return JSON.parse((d.content?.[0]?.text || '{}').replace(/```json|```/g, '').trim());
+}
+
+async function runExpertGPT(scope, contextText, slug) {
+  const prompt = `Sos un analista senior experto en eCommerce y paid media, especializado en ${SCOPE_LABELS[scope]}. Mirá los datos YA CALCULADOS a continuación (no recalcules nada, ya vienen resueltos) y dá tu diagnóstico desde el ángulo de CRECIMIENTO Y OPORTUNIDAD ESTRATÉGICA:
+
+${contextText}
+
+Respondé SOLO en JSON:
+{"diagnostico":"qué está pasando en 2-3 oraciones","causa_probable":"por qué probablemente está pasando","prioridad":"alta|media|baja","accion_recomendada":"la acción más importante a tomar"}`;
+
+  const r = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + OPENAI_KEY },
+    body: JSON.stringify({ model: 'gpt-4o-mini', max_tokens: 500, messages: [{ role: 'user', content: prompt }] })
+  });
+  const d = await r.json();
+  logAiCall({ slug, model: 'gpt-4o-mini', callType: 'expert_analysis_gpt_' + scope, inputTokens: d.usage?.prompt_tokens || 0, outputTokens: d.usage?.completion_tokens || 0 }).catch(()=>{});
+  return JSON.parse((d.choices?.[0]?.message?.content || '{}').replace(/```json|```/g, '').trim());
+}
+
+async function runExpertSynthesis(scope, contextText, claudeR, gptR, slug) {
+  const prompt = `Sos un Growth Manager Senior. Dos analistas evaluaron ${SCOPE_LABELS[scope]} con estos datos:
+
+${contextText}
+
+Análisis de Claude (ángulo rentabilidad/eficiencia): ${JSON.stringify(claudeR)}
+Análisis de GPT (ángulo crecimiento/oportunidad): ${JSON.stringify(gptR)}
+
+Dá un veredicto final integrado. Respondé SOLO en JSON:
+{"resumen_ejecutivo":"2-3 oraciones integrando ambos ángulos","prioridad":"alta|media|baja","accion_inmediata":"la 1 acción más importante a tomar ahora","impacto_estimado":"estimación cualitativa del impacto si se actúa (ej: alto/medio/bajo, con breve razón)"}`;
+
+  const r = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
+    body: JSON.stringify({ model: 'claude-sonnet-5', max_tokens: 700, messages: [{ role: 'user', content: prompt }] })
+  });
+  const d = await r.json();
+  if (!r.ok || d.error) throw new Error('Claude synthesis: ' + (d.error?.message || r.status));
+  logAiCall({ slug, model: 'claude-sonnet-5', callType: 'expert_synthesis_' + scope, inputTokens: d.usage?.input_tokens || 0, outputTokens: d.usage?.output_tokens || 0 }).catch(()=>{});
+  return JSON.parse((d.content?.[0]?.text || '{}').replace(/```json|```/g, '').trim());
+}
+
+async function runExpertAnalysis(scope, contextText, slug) {
+  const [claude, gpt] = await Promise.all([
+    runExpertClaude(scope, contextText, slug).catch(e => ({ error: e.message })),
+    runExpertGPT(scope, contextText, slug).catch(e => ({ error: e.message })),
+  ]);
+  const synthesis = await runExpertSynthesis(scope, contextText, claude, gpt, slug).catch(e => ({ error: e.message }));
+  return { claude, gpt, synthesis };
+}
+
+// ── Armado de contexto en texto plano por solapa (para el prompt) ──
+function summarizeChannelForPrompt(label, comp) {
+  if (!comp) return `${label}: sin datos cargados para este período todavía.`;
+  const c = comp.current;
+  let txt = `${label} — esta semana: gasto $${c.spend}, ROAS ${c.roas ?? 'N/D'}, CPA $${c.cpa ?? 'N/D'}, CTR ${c.ctr ?? 'N/D'}%, conversiones ${c.conversions}.`;
+  txt += comp.wow
+    ? ` Vs. semana anterior: ROAS ${comp.wow.delta_pct.roas ?? 'N/D'}%, gasto ${comp.wow.delta_pct.spend ?? 'N/D'}%.`
+    : ` Sin dato de la semana anterior todavía.`;
+  txt += comp.yoy
+    ? ` Vs. mismo período año pasado: ROAS ${comp.yoy.delta_pct.roas ?? 'N/D'}%.`
+    : ` Sin dato del año pasado todavía.`;
+  if (comp.vs_target) {
+    txt += ` Vs. objetivo configurado: ROAS ${comp.vs_target.roas_status ?? 'N/D'} (mínimo ${comp.vs_target.roas_min ?? 'N/D'}), CPA ${comp.vs_target.cpa_status ?? 'N/D'} (máximo ${comp.vs_target.cpa_max ?? 'N/D'}), CTR ${comp.vs_target.ctr_status ?? 'N/D'} (mínimo ${comp.vs_target.ctr_min ?? 'N/D'}).`;
+  }
+  return txt;
+}
+
+function summarizeEcommerceForPrompt(row) {
+  if (!row) return 'eCommerce: sin datos cargados para este mes todavía.';
+  const inversionTotal = Number(row.inversion_meta_auto ?? 0) + Number(row.inversion_google_auto ?? 0);
+  const ticketPromedio = row.pedidos ? +(row.facturacion / row.pedidos).toFixed(2) : null;
+  const cacReal = row.clientes_nuevos ? +(inversionTotal / row.clientes_nuevos).toFixed(2) : null;
+  return `eCommerce ${row.month}/${row.year}: facturación $${row.facturacion ?? 'N/D'}, pedidos ${row.pedidos ?? 'N/D'}, ticket promedio $${ticketPromedio ?? 'N/D'}, tasa de conversión del sitio ${row.tasa_conversion_ecommerce ?? 'N/D'}%. Inversión total (Meta+Google) $${inversionTotal}, CAC real $${cacReal ?? 'N/D'}. Clientes nuevos ${row.clientes_nuevos ?? 'N/D'}, recurrentes ${row.clientes_recurrentes ?? 'N/D'}.`;
+}
+
+function summarizeHaloForPrompt(halo) {
+  const h = halo.halo_meta_a_google, d = halo.dependencia_google_a_meta;
+  let txt = '';
+  txt += h.muestra_suficiente
+    ? `Señal de halo Meta→Google: ${h.consistencia_pct}% de consistencia en ${h.pares_evaluados} semanas evaluadas. `
+    : `Señal de halo Meta→Google: muestra insuficiente todavía (${h.pares_evaluados} semanas evaluadas). `;
+  txt += d.muestra_suficiente
+    ? `Señal de dependencia Google→Meta: ${d.consistencia_pct}% de consistencia en ${d.pares_evaluados} semanas evaluadas.`
+    : `Señal de dependencia Google→Meta: muestra insuficiente todavía (${d.pares_evaluados} semanas evaluadas).`;
+  return txt;
+}
+
+function summarizeGA4MetricsForPrompt(site, topPages, topItems) {
+  if (!site || !site.has_data) return 'Analytics: sin datos de tráfico cargados todavía para esta semana.';
+  let txt = `Sitio esta semana: ${site.total_users} usuarios totales, ${site.new_users} usuarios nuevos, tiempo de interacción medio por usuario activo de ${site.avg_engagement_seconds} segundos, tasa de rebote ${site.bounce_rate}%.`;
+  if (topPages?.length) {
+    txt += ` Páginas más visitadas: ${topPages.slice(0, 5).map(p => `${p.path} (${p.views} vistas)`).join(', ')}.`;
+  }
+  if (topItems?.length) {
+    txt += ` Artículos más vistos: ${topItems.slice(0, 5).map(i => `${i.item} (${i.views} vistas)`).join(', ')}.`;
+  }
+  return txt;
+}
+
+function summarizeGA4FunnelForPrompt(steps) {
+  if (!steps || !steps.length) return 'Funnel de eCommerce: sin datos cargados todavía para esta semana.';
+  const labels = { view_item: 'Vista de producto', add_to_cart: 'Agregado al carrito', begin_checkout: 'Checkout iniciado', add_shipping_info: 'Datos de envío', add_payment_info: 'Datos de pago', purchase: 'Compra' };
+  return 'Funnel de eCommerce esta semana: ' + steps.map(s =>
+    `${labels[s.event] || s.event}: ${s.count}${s.conversion_from_prev != null ? ` (${s.conversion_from_prev}% vs. paso anterior, ${s.conversion_from_start}% vs. el inicio del funnel)` : ''}`
+  ).join('. ') + '.';
+}
+
+// ── Endpoint: análisis IA solapa Meta Ads ──
+app.post('/api/:slug/intelligence/analyze-meta', async (req, res) => {
+  const slug = req.params.slug;
+  const clientDB = await loadClientDB(slug);
+  if (!clientDB) return res.status(404).json({ error: 'Cliente no encontrado' });
+  const { password, iso_year, iso_week } = req.body;
+  if (!(await checkPassword(slug, password))) return res.status(401).json({ error: 'No autorizado' });
+  if (!ANTHROPIC_KEY || !OPENAI_KEY) return res.status(500).json({ error: 'Faltan API keys de IA configuradas' });
+
+  try {
+    const isoYear = Number(iso_year), isoWeek = Number(iso_week);
+    const prevWeek = shiftIsoWeek(isoYear, isoWeek, -1);
+    const yoyWeek  = { isoYear: isoYear - 1, isoWeek };
+    const [current, prev, yoy] = await Promise.all([
+      aggregateAdMetricsForWeek(clientDB.id, isoYear, isoWeek),
+      aggregateAdMetricsForWeek(clientDB.id, prevWeek.isoYear, prevWeek.isoWeek),
+      aggregateAdMetricsForWeek(clientDB.id, yoyWeek.isoYear, yoyWeek.isoWeek),
+    ]);
+    const comp = buildSourceComparison(current.meta, prev.meta, yoy.meta, clientDB.kpi_targets || {});
+    const contextText = summarizeChannelForPrompt('Meta Ads', comp);
+
+    const result = await runExpertAnalysis('meta', contextText, slug);
+    await supabase.from('ai_insights').insert({
+      client_id: clientDB.id, period_type: 'week', iso_year: isoYear, iso_week: isoWeek,
+      module: 'meta_ads', insight_type: 'diagnosis', source_model: 'synthesis',
+      content: result, priority: result.synthesis?.prioridad || null,
+    });
+    res.json({ context: contextText, ...result });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── Endpoint: análisis IA solapa Google Ads ──
+app.post('/api/:slug/intelligence/analyze-google', async (req, res) => {
+  const slug = req.params.slug;
+  const clientDB = await loadClientDB(slug);
+  if (!clientDB) return res.status(404).json({ error: 'Cliente no encontrado' });
+  const { password, iso_year, iso_week } = req.body;
+  if (!(await checkPassword(slug, password))) return res.status(401).json({ error: 'No autorizado' });
+  if (!ANTHROPIC_KEY || !OPENAI_KEY) return res.status(500).json({ error: 'Faltan API keys de IA configuradas' });
+
+  try {
+    const isoYear = Number(iso_year), isoWeek = Number(iso_week);
+    const prevWeek = shiftIsoWeek(isoYear, isoWeek, -1);
+    const yoyWeek  = { isoYear: isoYear - 1, isoWeek };
+    const [current, prev, yoy] = await Promise.all([
+      aggregateAdMetricsForWeek(clientDB.id, isoYear, isoWeek),
+      aggregateAdMetricsForWeek(clientDB.id, prevWeek.isoYear, prevWeek.isoWeek),
+      aggregateAdMetricsForWeek(clientDB.id, yoyWeek.isoYear, yoyWeek.isoWeek),
+    ]);
+    const comp = buildSourceComparison(current.google_ads, prev.google_ads, yoy.google_ads, clientDB.kpi_targets || {});
+    const contextText = summarizeChannelForPrompt('Google Ads', comp);
+
+    const result = await runExpertAnalysis('google_ads', contextText, slug);
+    await supabase.from('ai_insights').insert({
+      client_id: clientDB.id, period_type: 'week', iso_year: isoYear, iso_week: isoWeek,
+      module: 'google_ads', insight_type: 'diagnosis', source_model: 'synthesis',
+      content: result, priority: result.synthesis?.prioridad || null,
+    });
+    res.json({ context: contextText, ...result });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── Endpoint: análisis IA solapa eCommerce ──
+app.post('/api/:slug/intelligence/analyze-ecommerce', async (req, res) => {
+  const slug = req.params.slug;
+  const clientDB = await loadClientDB(slug);
+  if (!clientDB) return res.status(404).json({ error: 'Cliente no encontrado' });
+  const { password, year, month } = req.body;
+  if (!(await checkPassword(slug, password))) return res.status(401).json({ error: 'No autorizado' });
+  if (!ANTHROPIC_KEY || !OPENAI_KEY) return res.status(500).json({ error: 'Faltan API keys de IA configuradas' });
+
+  try {
+    const { data: row } = await supabase
+      .from('business_metrics_monthly').select('*')
+      .eq('client_id', clientDB.id).eq('year', year).eq('month', month).maybeSingle();
+    const contextText = summarizeEcommerceForPrompt(row);
+
+    const result = await runExpertAnalysis('ecommerce', contextText, slug);
+    await supabase.from('ai_insights').insert({
+      client_id: clientDB.id, period_type: 'month', year: Number(year), month: Number(month),
+      module: 'ecommerce', insight_type: 'diagnosis', source_model: 'synthesis',
+      content: result, priority: result.synthesis?.prioridad || null,
+    });
+    res.json({ context: contextText, ...result });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── Endpoint: análisis IA solapa Transversal (todo junto) ──
+// ── Endpoint: análisis IA de las métricas de tráfico/comportamiento (Analytics) ──
+app.post('/api/:slug/intelligence/analyze-ga4-metrics', async (req, res) => {
+  const slug = req.params.slug;
+  const clientDB = await loadClientDB(slug);
+  if (!clientDB) return res.status(404).json({ error: 'Cliente no encontrado' });
+  const { password, period, iso_year, iso_week } = req.body;
+  if (!(await checkPassword(slug, password))) return res.status(401).json({ error: 'No autorizado' });
+  if (!ANTHROPIC_KEY || !OPENAI_KEY) return res.status(500).json({ error: 'Faltan API keys de IA configuradas' });
+
+  try {
+    const propertyId = await getGA4PropertyId(slug);
+    if (!propertyId) return res.status(400).json({ error: 'Este cliente no tiene una propiedad de Google Analytics asociada.' });
+
+    const { since, until } = computeDateRangeForPeriod(period || '7d', iso_year, iso_week);
+
+    const { data: siteRows } = await supabase
+      .from('ga4_site_metrics_daily').select('*')
+      .eq('client_id', clientDB.id).gte('date', since).lte('date', until);
+    let site = { has_data: false };
+    if (siteRows && siteRows.length > 0) {
+      site = {
+        has_data: true,
+        total_users: siteRows.reduce((a, r) => a + (r.total_users || 0), 0),
+        new_users: siteRows.reduce((a, r) => a + (r.new_users || 0), 0),
+        avg_engagement_seconds: +(siteRows.reduce((a, r) => a + (r.avg_engagement_seconds || 0), 0) / siteRows.length).toFixed(1),
+        bounce_rate: +(siteRows.reduce((a, r) => a + (r.bounce_rate || 0), 0) / siteRows.length).toFixed(1),
+      };
+    }
+    const [topPages, topItems] = await Promise.all([
+      fetchGA4TopPages(propertyId, since, until, 5),
+      fetchGA4TopItems(propertyId, since, until, 5),
+    ]);
+    const contextText = summarizeGA4MetricsForPrompt(site, topPages, topItems);
+
+    const result = await runExpertAnalysis('ga4_metrics', contextText, slug);
+    await supabase.from('ai_insights').insert({
+      client_id: clientDB.id, period_type: period || '7d',
+      iso_year: period === 'week' ? Number(iso_year) : null, iso_week: period === 'week' ? Number(iso_week) : null,
+      module: 'ga4_metrics', insight_type: 'diagnosis', source_model: 'synthesis',
+      content: result, priority: result.synthesis?.prioridad || null,
+    });
+    res.json({ context: contextText, ...result });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── Endpoint: análisis IA del funnel de eCommerce (Analytics) ──
+app.post('/api/:slug/intelligence/analyze-ga4-funnel', async (req, res) => {
+  const slug = req.params.slug;
+  const clientDB = await loadClientDB(slug);
+  if (!clientDB) return res.status(404).json({ error: 'Cliente no encontrado' });
+  const { password, period, iso_year, iso_week } = req.body;
+  if (!(await checkPassword(slug, password))) return res.status(401).json({ error: 'No autorizado' });
+  if (!ANTHROPIC_KEY || !OPENAI_KEY) return res.status(500).json({ error: 'Faltan API keys de IA configuradas' });
+
+  try {
+    const propertyId = await getGA4PropertyId(slug);
+    if (!propertyId) return res.status(400).json({ error: 'Este cliente no tiene una propiedad de Google Analytics asociada.' });
+
+    const { since, until } = computeDateRangeForPeriod(period || '7d', iso_year, iso_week);
+
+    const counts = await fetchGA4FunnelCounts(propertyId, since, until);
+    const steps = GA4_FUNNEL_EVENTS.map((event, i) => {
+      const count = counts[event] || 0;
+      const prevCount = i > 0 ? (counts[GA4_FUNNEL_EVENTS[i - 1]] || 0) : null;
+      return {
+        event, count,
+        conversion_from_prev: (i > 0 && prevCount) ? +(count / prevCount * 100).toFixed(1) : null,
+        conversion_from_start: (i > 0 && counts[GA4_FUNNEL_EVENTS[0]]) ? +(count / counts[GA4_FUNNEL_EVENTS[0]] * 100).toFixed(1) : null,
+      };
+    });
+    const contextText = summarizeGA4FunnelForPrompt(steps);
+
+    const result = await runExpertAnalysis('ga4_funnel', contextText, slug);
+    await supabase.from('ai_insights').insert({
+      client_id: clientDB.id, period_type: period || '7d',
+      iso_year: period === 'week' ? Number(iso_year) : null, iso_week: period === 'week' ? Number(iso_week) : null,
+      module: 'ga4_funnel', insight_type: 'diagnosis', source_model: 'synthesis',
+      content: result, priority: result.synthesis?.prioridad || null,
+    });
+    res.json({ context: contextText, steps, ...result });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/api/:slug/intelligence/analyze-transversal', async (req, res) => {
+  const slug = req.params.slug;
+  const clientDB = await loadClientDB(slug);
+  if (!clientDB) return res.status(404).json({ error: 'Cliente no encontrado' });
+  const { password, iso_year, iso_week, year, month } = req.body;
+  if (!(await checkPassword(slug, password))) return res.status(401).json({ error: 'No autorizado' });
+  if (!ANTHROPIC_KEY || !OPENAI_KEY) return res.status(500).json({ error: 'Faltan API keys de IA configuradas' });
+
+  try {
+    const isoYear = Number(iso_year), isoWeek = Number(iso_week);
+    const prevWeek = shiftIsoWeek(isoYear, isoWeek, -1);
+    const yoyWeek  = { isoYear: isoYear - 1, isoWeek };
+    const [current, prev, yoy] = await Promise.all([
+      aggregateAdMetricsForWeek(clientDB.id, isoYear, isoWeek),
+      aggregateAdMetricsForWeek(clientDB.id, prevWeek.isoYear, prevWeek.isoWeek),
+      aggregateAdMetricsForWeek(clientDB.id, yoyWeek.isoYear, yoyWeek.isoWeek),
+    ]);
+    const targets = clientDB.kpi_targets || {};
+    const compMeta = buildSourceComparison(current.meta, prev.meta, yoy.meta, targets);
+    const compGoogle = buildSourceComparison(current.google_ads, prev.google_ads, yoy.google_ads, targets);
+
+    const [metaSeries, googleSeries] = await Promise.all([
+      getWeeklySeries(clientDB.id, 'meta', isoYear, isoWeek, 8),
+      getWeeklySeries(clientDB.id, 'google_ads', isoYear, isoWeek, 8),
+    ]);
+    const halo = {
+      halo_meta_a_google: detectLaggedSignal(metaSeries, googleSeries, 'spend', 'conversions'),
+      dependencia_google_a_meta: detectLaggedSignal(googleSeries, metaSeries, 'spend', 'roas'),
+    };
+
+    const { data: bizRow } = await supabase
+      .from('business_metrics_monthly').select('*')
+      .eq('client_id', clientDB.id).eq('year', year).eq('month', month).maybeSingle();
+
+    const contextText = [
+      summarizeChannelForPrompt('Meta Ads', compMeta),
+      summarizeChannelForPrompt('Google Ads', compGoogle),
+      summarizeHaloForPrompt(halo),
+      summarizeEcommerceForPrompt(bizRow),
+    ].join('\n');
+
+    const result = await runExpertAnalysis('transversal', contextText, slug);
+    await supabase.from('ai_insights').insert({
+      client_id: clientDB.id, period_type: 'week', iso_year: isoYear, iso_week: isoWeek,
+      module: 'home', insight_type: 'diagnosis', source_model: 'synthesis',
+      content: result, priority: result.synthesis?.prioridad || null,
+    });
+    res.json({ context: contextText, ...result });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get('/api/:slug/intelligence/halo-signals', async (req, res) => {
+  const slug = req.params.slug;
+  const clientDB = await loadClientDB(slug);
+  if (!clientDB) return res.status(404).json({ error: 'Cliente no encontrado' });
+  const { password, iso_year, iso_week, weeks_back } = req.query;
+  if (!(await checkPassword(slug, password))) return res.status(401).json({ error: 'No autorizado' });
+  if (!iso_year || !iso_week) return res.status(400).json({ error: 'Falta iso_year o iso_week' });
+
+  try {
+    const isoYear = Number(iso_year), isoWeek = Number(iso_week);
+    const count = Number(weeks_back) || 8;
+
+    const [metaSeries, googleSeries] = await Promise.all([
+      getWeeklySeries(clientDB.id, 'meta', isoYear, isoWeek, count),
+      getWeeklySeries(clientDB.id, 'google_ads', isoYear, isoWeek, count),
+    ]);
+
+    // Halo Meta → Google: ¿sube el gasto/impresiones de Meta y, la semana
+    // siguiente, suben las conversiones de Google?
+    const haloMetaToGoogle = detectLaggedSignal(metaSeries, googleSeries, 'spend', 'conversions');
+
+    // Dependencia Google → Meta: ¿baja el gasto de Google y, la semana
+    // siguiente, baja el ROAS de Meta (remarketing sin gente "calentada")?
+    const dependenciaGoogleToMeta = detectLaggedSignal(googleSeries, metaSeries, 'spend', 'roas');
+
+    res.json({
+      iso_year: isoYear, iso_week: isoWeek, semanas_analizadas: count,
+      halo_meta_a_google: haloMetaToGoogle,
+      dependencia_google_a_meta: dependenciaGoogleToMeta,
+    });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get('/api/:slug/intelligence/weekly-correlation', async (req, res) => {
+  const slug = req.params.slug;
+  const clientDB = await loadClientDB(slug);
+  if (!clientDB) return res.status(404).json({ error: 'Cliente no encontrado' });
+  const { password, iso_year, iso_week } = req.query;
+  if (!(await checkPassword(slug, password))) return res.status(401).json({ error: 'No autorizado' });
+  if (!iso_year || !iso_week) return res.status(400).json({ error: 'Falta iso_year o iso_week' });
+
+  try {
+    const isoYear = Number(iso_year), isoWeek = Number(iso_week);
+    const prevWeek = shiftIsoWeek(isoYear, isoWeek, -1);
+    const yoyWeek  = { isoYear: isoYear - 1, isoWeek };
+
+    const [current, prev, yoy] = await Promise.all([
+      aggregateAdMetricsForWeek(clientDB.id, isoYear, isoWeek),
+      aggregateAdMetricsForWeek(clientDB.id, prevWeek.isoYear, prevWeek.isoWeek),
+      aggregateAdMetricsForWeek(clientDB.id, yoyWeek.isoYear, yoyWeek.isoWeek),
+    ]);
+
+    const targets = clientDB.kpi_targets || {};
+    const comparison = {};
+    for (const src of ['meta', 'google_ads']) {
+      comparison[src] = buildSourceComparison(current[src], prev[src], yoy[src], targets);
+    }
+
+    res.json({
+      iso_year: isoYear, iso_week: isoWeek,
+      compared_to: { wow: prevWeek, yoy: yoyWeek },
+      comparison,
+    });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── Métricas crudas de UNA semana puntual, para el filtro "Semana N" ──
+// unificado entre Meta Ads y Google Ads (Punto 4 del roadmap post-Fase 5).
+// Reutiliza aggregateAdMetricsForWeek (misma fuente que ya usan
+// weekly-correlation y halo-signals) — no pega en vivo a las APIs de
+// Meta/Google, así que funciona igual para semanas viejas y no consume
+// cuota de las APIs externas.
+app.get('/api/:slug/metrics-by-week', async (req, res) => {
+  const slug = req.params.slug;
+  const clientDB = await loadClientDB(slug);
+  if (!clientDB) return res.status(404).json({ error: 'Cliente no encontrado' });
+  const { password, source, iso_year, iso_week } = req.query;
+  if (!(await checkPassword(slug, password))) return res.status(401).json({ error: 'No autorizado' });
+  if (!iso_year || !iso_week) return res.status(400).json({ error: 'Falta iso_year o iso_week' });
+  if (source !== 'meta' && source !== 'google_ads') return res.status(400).json({ error: 'source debe ser meta o google_ads' });
+  try {
+    const isoYear = Number(iso_year), isoWeek = Number(iso_week);
+    const bySource = await aggregateAdMetricsForWeek(clientDB.id, isoYear, isoWeek);
+    res.json({ iso_year: isoYear, iso_week: isoWeek, source, data: bySource[source] || {}, currency: clientDB.currency || 'ARS' });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get('/api/:slug/business-monthly/history', async (req, res) => {
+  const slug = req.params.slug;
+  const clientDB = await loadClientDB(slug);
+  if (!clientDB) return res.status(404).json({ error: 'Cliente no encontrado' });
+  const { password, months } = req.query;
+  if (!(await checkPassword(slug, password))) return res.status(401).json({ error: 'No autorizado' });
+
+  const { data, error } = await supabase
+    .from('business_metrics_monthly')
+    .select('*')
+    .eq('client_id', clientDB.id)
+    .order('year', { ascending: false })
+    .order('month', { ascending: false })
+    .limit(Number(months) || 12);
+  if (error) return res.status(500).json({ error: error.message });
+
+  // Cálculos derivados — no se guardan, se devuelven ya resueltos
+  // (métricas primero: esto sigue siendo dato, no análisis)
+  const history = data.map(row => {
+    const inversionTotal = Number(row.inversion_meta_manual ?? row.inversion_meta_auto ?? 0)
+                          + Number(row.inversion_google_manual ?? row.inversion_google_auto ?? 0);
+    const ticketPromedio = row.pedidos ? +(row.facturacion / row.pedidos).toFixed(2) : null;
+    const cacReal = row.clientes_nuevos ? +(inversionTotal / row.clientes_nuevos).toFixed(2) : null;
+    return { ...row, ticket_promedio: ticketPromedio, cac_real: cacReal, inversion_total: inversionTotal };
+  });
+
+  res.json({ history });
+});
+
+// Fase 1 — Google Ads: traer y guardar métricas de campaña (solo métricas,
+// sin análisis — el análisis es un paso posterior y separado).
+// Se usa el día de AYER (no hoy): a diferencia de Meta, los datos de
+// Google Ads del día en curso suelen llegar incompletos/con demora.
+app.post('/api/:slug/google-ads/refresh-metrics', async (req, res) => {
+  const slug = req.params.slug;
+  const clientDB = await loadClientDB(slug);
+  if (!clientDB) return res.status(404).json({ error: 'Cliente no encontrado' });
+  const { password } = req.body;
+  if (!(await checkPassword(slug, password))) return res.status(401).json({ error: 'No autorizado' });
+
+  const customerId = await getGoogleAdsAccountId(slug);
+  if (!customerId) return res.status(400).json({ error: 'Este cliente no tiene una cuenta de Google Ads asociada' });
+
+  try {
+    const dateStr = yesterday();
+    const raw = await fetchCampaignMetrics(customerId, dateStr);
+    const rows = normalizeToAdMetricsRows(clientDB.id, dateStr, raw);
+
+    if (rows.length > 0) {
+      const { error } = await supabase
+        .from('ad_metrics_daily')
+        .upsert(rows, { onConflict: 'client_id,source,date,campaign_id' });
+      if (error) throw new Error('Error guardando en Supabase: ' + error.message);
+    }
+
+    res.json({ date: dateStr, campaigns: rows.length, metrics: rows });
+  } catch(e) {
+    console.error(`[google-ads] Error en ${slug}:`, e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Fase 1 — Google Ads: leer historial ya guardado (sin llamar a la API de Google)
+app.get('/api/:slug/google-ads/history', async (req, res) => {
+  const slug = req.params.slug;
+  const clientDB = await loadClientDB(slug);
+  if (!clientDB) return res.status(404).json({ error: 'Cliente no encontrado' });
+  const { password, days } = req.query;
+  if (!(await checkPassword(slug, password))) return res.status(401).json({ error: 'No autorizado' });
+
+  const { data, error } = await supabase
+    .from('ad_metrics_daily')
+    .select('*')
+    .eq('client_id', clientDB.id)
+    .eq('source', 'google_ads')
+    .order('date', { ascending: false })
+    .limit(Number(days) || 30);
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ history: data });
+});
+
+// Métricas de Google Ads por período (Ayer/7d/14d/Mes) — mismo criterio de
+// fechas que /api/:slug/metrics usa para Meta, pero leyendo de Supabase
+// (ad_metrics_daily) en vez de pegarle en vivo a la API de Google Ads.
+app.get('/api/:slug/google-ads/metrics', async (req, res) => {
+  const slug = req.params.slug;
+  const clientDB = await loadClientDB(slug);
+  if (!clientDB) return res.status(404).json({ error: 'Cliente no encontrado' });
+  const { password, period } = req.query;
+  if (!(await checkPassword(slug, password))) return res.status(401).json({ error: 'No autorizado' });
+
+  try {
+    const { since, until } = dateRangeForPeriod(period || '7d');
+    const data = await aggregateAdMetricsForDateRange(clientDB.id, 'google_ads', since, until);
+    res.json({ period: period || '7d', since, until, data, currency: clientDB.currency || 'ARS' });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Guardar KPI targets
+app.post('/api/:slug/save-kpis', async (req, res) => {
+  const slug = req.params.slug;
+  const client = await loadClient(slug);
+  if (!client) return res.status(404).json({ error: 'Cliente no encontrado' });
+  const { password, kpis } = req.body;
+  if (!(await checkPassword(slug, password))) return res.status(401).json({ error: 'No autorizado' });
+  const clientDB = await loadClientDB(slug);
+  if (clientDB) {
+    const update = { kpi_targets: kpis };
+    if (kpis.currency) update.currency = kpis.currency;
+    await supabase.from('clients').update(update).eq('id', clientDB.id);
+  }
+  res.json({ ok: true });
+});
+
+// Guardar configuración del dashboard (métricas visibles)
+app.post('/api/:slug/save-dashboard-config', async (req, res) => {
+  const slug = req.params.slug;
+  const clientDB = await loadClientDB(slug);
+  if (!clientDB) return res.status(404).json({ error: 'Cliente no encontrado' });
+  const { password, dashConfig } = req.body;
+  if (!(await checkPassword(slug, password))) return res.status(401).json({ error: 'No autorizado' });
+  await supabase.from('clients').update({ dash_config: dashConfig }).eq('id', clientDB.id);
+  res.json({ ok: true });
+});
+
+// ── FETCH MÉTRICAS POR PERÍODO (unificado, misma lógica que fetchAccountMetrics) ──
+async function fetchMetricsByPeriod(client, period, isoYear, isoWeek) {
+  const token     = client.access_token;
+  const accountId = client.ad_account_id;
+
+  const fieldsBase = 'spend,impressions,clicks,ctr,cpm,reach,frequency,actions,action_values,unique_clicks,unique_ctr';
+  const videoExtra = ',video_10_sec_watched_actions,video_15_sec_watched_actions,video_30_sec_watched_actions,video_avg_time_watched_actions';
+
+  const today    = new Date();
+  const fmt      = d => d.toISOString().split('T')[0];
+  const daysAgo  = n => { const d = new Date(today); d.setUTCDate(today.getUTCDate()-n); return d; };
+
+  let since, until;
+  if (period === 'yesterday') {
+    since = until = fmt(daysAgo(1));
+  } else if (period === '14d') {
+    since = fmt(daysAgo(14)); until = fmt(daysAgo(1));
+  } else if (period === 'month') {
+    since = fmt(new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1)));
+    until = fmt(daysAgo(1));
+  } else if (period === 'week') {
+    // Punto 4 del roadmap post-Fase 5: filtro "Semana N" unificado con Google Ads.
+    // Mismo lunes-a-domingo que usa el resto del sistema (isoWeekThursdayDate).
+    if (!isoYear || !isoWeek) throw new Error('Falta iso_year o iso_week para period=week');
+    const thursday = isoWeekThursdayDate(Number(isoYear), Number(isoWeek));
+    const monday = new Date(thursday); monday.setUTCDate(thursday.getUTCDate() - 3);
+    const sunday = new Date(thursday); sunday.setUTCDate(thursday.getUTCDate() + 3);
+    since = fmt(monday); until = fmt(sunday);
+  } else {
+    // 7d default
+    since = fmt(daysAgo(7)); until = fmt(daysAgo(1));
+  }
+
+  const tr   = encodeURIComponent(JSON.stringify({ since, until }));
+  const base = '/' + accountId + '/insights';
+
+  // Helper con fallback de video fields
+  const fetchLevel = async (extraFields, level, limit=50) => {
+    const withVideo = `${base}?fields=${fieldsBase}${videoExtra}${extraFields}&time_range=${tr}&level=${level}&limit=${limit}&`;
+    const noVideo   = `${base}?fields=${fieldsBase}${extraFields}&time_range=${tr}&level=${level}&limit=${limit}&`;
+    try {
+      return await metaFetch(withVideo, token);
+    } catch(e) {
+      console.log(`[metrics/${period}] video fallback para ${level}`);
+      return await metaFetch(noVideo, token).catch(() => ({ data: [] }));
+    }
+  };
+
+  // Obtener campaign status/objective y adset learning stage en paralelo
+  const [accountData, campaignData, adsetData, adData, campaignStatus, adsetStatus] = await Promise.all([
+    fetchLevel('', 'account', 1),
+    fetchLevel(',campaign_id,campaign_name', 'campaign', 50),
+    fetchLevel(',adset_id,adset_name,campaign_name', 'adset', 100),
+    fetchLevel(',ad_id,ad_name,adset_id,adset_name,campaign_name', 'ad', 50),
+    metaFetch(`/${accountId}/campaigns?fields=id,effective_status,status,objective&limit=100&`, token).catch(() => ({data:[]})),
+    metaFetch(`/${accountId}/adsets?fields=id,effective_status,learning_stage_info&limit=100&`, token).catch(() => ({data:[]})),
+  ]);
+
+  // Mapas de estado
+  const campMap   = {};
+  (campaignStatus.data || []).forEach(c => { campMap[c.id] = { status: c.effective_status||c.status||'ACTIVE', objective: c.objective||'' }; });
+  const adsetMap  = {};
+  (adsetStatus.data   || []).forEach(a => { adsetMap[a.id]  = { status: a.effective_status, learning: a.learning_stage_info }; });
+
+  // Procesar
+  const accRaw   = accountData.data?.[0] || {};
+  const account  = { ...calcKpis(accRaw), _actions: filterActions(accRaw.actions||[]) };
+
+  const campaigns = (campaignData.data || []).map(c => {
+    const kpis    = calcKpis(c);
+    const info    = campMap[c.campaign_id] || {};
+    return { id: c.campaign_id, name: c.campaign_name, status: info.status||'ACTIVE', objective: info.objective||'',
+      _actions: filterActions(c.actions||[]), ...kpis, phase: detectPhase(kpis), fatigueScore: calcFatigue(kpis) };
+  });
+
+  const adsets = (adsetData.data || []).map(a => {
+    const kpis  = calcKpis(a);
+    const info  = adsetMap[a.adset_id] || {};
+    return { id: a.adset_id, name: a.adset_name, campaignName: a.campaign_name, status: info.status||'ACTIVE',
+      _actions: filterActions(a.actions||[]), ...kpis, phase: detectPhaseReal(kpis, info.learning), fatigueScore: calcFatigue(kpis) };
+  });
+
+  const ads = (adData.data || []).map(ad => {
+    const kpis = calcKpis(ad);
+    return { id: ad.ad_id, name: ad.ad_name, adsetName: ad.adset_name, campaignName: ad.campaign_name,
+      _actions: filterActions(ad.actions||[]), ...kpis, fatigueScore: calcFatigue(kpis) };
+  });
+
+  console.log(`[metrics/${period}] ✓ account.spend=${account.spend} camps=${campaigns.length} adsets=${adsets.length} ads=${ads.length}`);
+  return { account, campaigns, adsets, ads, period };
+}
+
+// Métricas por período — endpoint unificado
+app.get('/api/:slug/metrics', async (req, res) => {
+  const slug   = req.params.slug;
+  const client = await loadClientWithCreds(slug);
+  if (!client) return res.status(404).json({ error: 'Cliente no encontrado' });
+  const { password, period, iso_year, iso_week } = req.query;
+  if (!(await checkPassword(slug, password))) return res.status(401).json({ error: 'No autorizado' });
+  try {
+    const data = await fetchMetricsByPeriod(client, period || '7d', iso_year, iso_week);
+    res.json({ ...data, currency: client.currency || 'ARS' });
+  } catch(e) {
+    console.error('[metrics] error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Analizar solo (sin refrescar métricas de Meta)
+app.post('/api/:slug/analyze-only', async (req, res) => {
+  const slug = req.params.slug;
+  const client = await loadClient(slug);
+  if (!client) return res.status(404).json({ error: 'Cliente no encontrado' });
+  const { password, period } = req.body;
+  if (!(await checkPassword(slug, password))) return res.status(401).json({ error: 'No autorizado' });
+  try {
+    // Cargar métricas del snapshot más reciente
+    const history = await loadHistoryDB(slug, 1);
+    if (!history.length) return res.status(400).json({ error: 'No hay datos. Primero actualizá el dashboard.' });
+    const metrics = history[0].metrics;
+    client.slug = slug;
+    const analysis = await runAnalysis(client, metrics);
+    // Guardar resumen en memoria del cliente (async, no bloquea respuesta)
+    generateDailySummary(client, metrics, analysis)
+      .then(entry => saveClientMemory(slug, entry))
+      .catch(e => console.warn('[memory] Error:', e.message));
+    // Guardar análisis actualizado en el snapshot (Sub-paso 3.4: en Supabase)
+    await patchTodaySnapshotDB(slug, { analysis });
+    res.json({ analysis });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Limpiar snapshot del día (fuerza fetch fresco en próxima carga)
+app.post('/api/:slug/clear-snapshot', async (req, res) => {
+  const slug = req.params.slug;
+  const client = await loadClient(slug);
+  if (!client) return res.status(404).json({ error: 'Cliente no encontrado' });
+  const { password } = req.body;
+  if (!(await checkPassword(slug, password))) return res.status(401).json({ error: 'No autorizado' });
+  try {
+    const clientDB = await loadClientDB(slug);
+    if (clientDB) {
+      await supabase
+        .from('ad_metrics_daily')
+        .delete()
+        .eq('client_id', clientDB.id)
+        .eq('source', 'meta')
+        .eq('date', today())
+        .is('campaign_id', null);
+    }
+    res.json({ ok: true, message: 'Snapshot eliminado. Actualizá el dashboard.' });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Ver memoria acumulada del cliente
+app.get('/api/:slug/memory', async (req, res) => {
+  const slug = req.params.slug;
+  const client = await loadClient(slug);
+  if (!client) return res.status(404).json({ error: 'Cliente no encontrado' });
+  const { password } = req.query;
+  if (!(await checkPassword(slug, password))) return res.status(401).json({ error: 'No autorizado' });
+  const memory = await loadClientMemory(slug);
+  res.json({ memory, total: memory.length });
+});
+
+// Diagnóstico rápido — ver qué devuelve Meta para esta cuenta
+app.get('/api/:slug/diag', async (req, res) => {
+  const slug = req.params.slug;
+  const client = await loadClientWithCreds(slug);
+  if (!client) return res.status(404).json({ error: 'Cliente no encontrado' });
+  const { password } = req.query;
+  if (!(await checkPassword(slug, password))) return res.status(401).json({ error: 'No autorizado' });
+  const token = client.access_token;
+  const accountId = client.ad_account_id;
+  const results = {};
+  // Test 1: token válido
+  try {
+    const me = await metaFetch('/me?fields=id,name&', token);
+    results.token = { ok: true, user: me.name || me.id };
+  } catch(e) { results.token = { ok: false, error: e.message }; }
+  // Test 2: cuenta válida
+  try {
+    const acc = await metaFetch('/' + accountId + '?fields=id,name,account_status&', token);
+    results.account = { ok: true, name: acc.name, status: acc.account_status };
+  } catch(e) { results.account = { ok: false, error: e.message }; }
+  // Test 3: insights básicos
+  try {
+    const ins = await metaFetch('/' + accountId + '/insights?fields=spend,impressions&date_preset=last_7d&level=account&', token);
+    results.insights = { ok: true, rows: ins.data?.length, spend: ins.data?.[0]?.spend };
+  } catch(e) { results.insights = { ok: false, error: e.message }; }
+  // Test 4: video fields
+  try {
+    await metaFetch('/' + accountId + '/insights?fields=spend,video_10_sec_watched_actions&date_preset=last_7d&level=account&', token);
+    results.video_fields = { ok: true };
+  } catch(e) { results.video_fields = { ok: false, error: e.message }; }
+  res.json(results);
+});
+app.get('/api/:slug/debug-actions', async (req, res) => {
+  const slug = req.params.slug;
+  const client = await loadClientWithCreds(slug);
+  if (!client) return res.status(404).json({ error: 'Cliente no encontrado' });
+  const { password } = req.query;
+  if (!(await checkPassword(slug, password))) return res.status(401).json({ error: 'No autorizado' });
+  try {
+    const data = await metaFetch(
+      '/' + client.ad_account_id + '/insights?fields=actions,action_values&date_preset=last_7d&level=account&',
+      client.access_token
+    );
+    const actions = data.data?.[0]?.actions || [];
+    const result = actions
+      .sort((a,b) => parseFloat(b.value) - parseFloat(a.value))
+      .map(a => ({ type: a.action_type, value: parseInt(a.value) }));
+    res.json({ total: result.length, actions: result });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Diagnóstico rápido — verifica que la conexión con Meta funciona
+app.get('/api/:slug/ping-meta', async (req, res) => {
+  const slug = req.params.slug;
+  const client = await loadClientWithCreds(slug);
+  if (!client) return res.status(404).json({ error: 'Cliente no encontrado' });
+  const { password } = req.query;
+  if (!(await checkPassword(slug, password))) return res.status(401).json({ error: 'No autorizado' });
+  try {
+    const fields = 'spend,impressions,clicks,actions';
+    const data = await metaFetch(
+      '/' + client.ad_account_id + '/insights?fields=' + fields + '&date_preset=last_7d&level=account&',
+      client.access_token
+    );
+    res.json({
+      ok: true,
+      accountId: client.ad_account_id,
+      rows: data.data?.length,
+      spend: data.data?.[0]?.spend,
+      impressions: data.data?.[0]?.impressions,
+      actions_count: data.data?.[0]?.actions?.length,
+    });
+  } catch(e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+
+
+// ── GUARDAR EMAIL DEL CLIENTE ─────────────────────────────────
+app.post('/api/:slug/save-email', async (req, res) => {
+  const slug = req.params.slug;
+  const clientDB = await loadClientDB(slug);
+  if (!clientDB) return res.status(404).json({ error: 'Cliente no encontrado' });
+  const { password, email } = req.body;
+  if (!(await checkPassword(slug, password))) return res.status(401).json({ error: 'No autorizado' });
+  await supabase.from('clients').update({ report_email: email }).eq('id', clientDB.id);
+  res.json({ ok: true });
+});
+
+// ── ANÁLISIS CREATIVO DUAL (Claude + GPT) ────────────────────
+async function analyzeCreativeWithClaude(ad, slug = 'creatives') {
+  const prompt = `Analizá este anuncio de Meta Ads desde una perspectiva estratégica y de copy.
+
+Anuncio: "${ad.adName}"
+Campaña: "${ad.campaignName}"
+Métricas: CTR ${ad.ctr.toFixed(2)}% | CPM $${Math.round(ad.cpm)} | Frecuencia ${ad.frequency.toFixed(1)} | Gasto $${Math.round(ad.spend)}${ad.mainResult ? ' | ' + ad.mainResult.label + ': ' + ad.mainResult.value : ''}
+${ad.title ? 'Título: ' + ad.title : ''}
+${ad.body ? 'Texto: ' + ad.body : ''}
+
+Respondé SOLO en JSON:
+{
+  "score": número del 1 al 10,
+  "fortaleza": "principal punto fuerte en 1 oración",
+  "debilidad": "principal punto débil en 1 oración",
+  "tips": ["tip de copy o estrategia 1", "tip 2", "tip 3"]
+}`;
+
+  const r = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
+    body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 400, messages: [{ role: 'user', content: prompt }] })
+  });
+  const d = await r.json();
+  logAiCall({ slug, model: 'claude-haiku-4-5-20251001', callType: 'creative_analysis_claude', inputTokens: d.usage?.input_tokens || 0, outputTokens: d.usage?.output_tokens || 0, notes: ad.adName?.slice(0,50) }).catch(()=>{});
+  return JSON.parse((d.content?.[0]?.text || '{}').replace(/```json|```/g, '').trim());
+}
+
+async function analyzeCreativeWithGPT(ad, slug = 'creatives') {
+  const prompt = `Analizá este anuncio de Meta Ads desde una perspectiva creativa y visual.
+
+Anuncio: "${ad.adName}"
+Campaña: "${ad.campaignName}"
+Tipo: ${ad.mediaType === 'video' ? 'Video' : 'Imagen'}
+Métricas: CTR ${ad.ctr.toFixed(2)}% | CPM $${Math.round(ad.cpm)} | Frecuencia ${ad.frequency.toFixed(1)}${ad.mainResult ? ' | ' + ad.mainResult.label + ': ' + ad.mainResult.value : ''}
+${ad.title ? 'Título: ' + ad.title : ''}
+
+Respondé SOLO en JSON:
+{
+  "score": número del 1 al 10,
+  "fortaleza": "principal punto fuerte visual/creativo en 1 oración",
+  "debilidad": "principal punto débil visual/creativo en 1 oración",
+  "tips": ["tip visual o creativo 1", "tip 2", "tip 3"]
+}`;
+
+  const r = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + OPENAI_KEY },
+    body: JSON.stringify({ model: 'gpt-4o-mini', max_tokens: 400, messages: [{ role: 'user', content: prompt }] })
+  });
+  const d = await r.json();
+  logAiCall({ slug, model: 'gpt-4o-mini', callType: 'creative_analysis_gpt', inputTokens: d.usage?.prompt_tokens || 0, outputTokens: d.usage?.completion_tokens || 0, notes: ad.adName?.slice(0,50) }).catch(()=>{});
+  return JSON.parse((d.choices?.[0]?.message?.content || '{}').replace(/```json|```/g, '').trim());
+}
+
+async function generateAndromedaVerdict(creatives, claudeAnalyses, gptAnalyses, slug = 'creatives') {
+  const summary = creatives.slice(0, 8).map((c, i) => {
+    const cl = claudeAnalyses[i] || {};
+    const gp = gptAnalyses[i] || {};
+    return (i+1) + '. "' + c.adName + '" | CTR ' + c.ctr.toFixed(2) + '% | Claude score: ' + (cl.score||'?') + '/10 | GPT score: ' + (gp.score||'?') + '/10 | Gasto $' + Math.round(c.spend);
+  }).join('\n');
+
+  const prompt = 'Sos el Agente Andrómeda, experto senior en Meta Ads. Dos analistas (Claude y GPT) evaluaron estas creatividades:\n\n' + summary + '\n\nDá un veredicto final integrado. Respondé SOLO en JSON:\n{"titulo":"Veredicto del Agente Andrómeda","resumen":"análisis ejecutivo en 2-3 oraciones","ganador":"nombre del anuncio ganador y por qué","accion_inmediata":"la 1 acción más importante a tomar ahora","redistribucion":"cómo redistribuir el presupuesto entre estas creatividades","proximo_test":"qué creatividad o formato testear a continuación"}';
+
+  const r = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
+    body: JSON.stringify({ model: 'claude-sonnet-5', max_tokens: 600, messages: [{ role: 'user', content: prompt }] })
+  });
+  const d = await r.json();
+  if (!r.ok || d.error) throw new Error('Claude andromeda_verdict: ' + (d.error?.message || r.status));
+  logAiCall({ slug, model: 'claude-sonnet-5', callType: 'andromeda_verdict', inputTokens: d.usage?.input_tokens || 0, outputTokens: d.usage?.output_tokens || 0 }).catch(()=>{});
+  return JSON.parse((d.content?.[0]?.text || '{}').replace(/```json|```/g, '').trim());
+}
+
+// ── ENVIAR REPORTE DE CREATIVIDADES POR EMAIL ────────────────
+app.post('/api/:slug/send-creatives-email', async (req, res) => {
+  const slug = req.params.slug;
+  const client = await loadClient(slug);
+  if (!client) return res.status(404).json({ error: 'Cliente no encontrado' });
+  const { password, creatives, aiAnalysis, andromedaVerdict } = req.body;
+  if (!(await checkPassword(slug, password))) return res.status(401).json({ error: 'No autorizado' });
+
+  const toEmail = client.report_email;
+  if (!toEmail) return res.status(400).json({ error: 'No hay email configurado para este cliente' });
+  if (!RESEND_KEY) return res.status(500).json({ error: 'Resend no configurado' });
+
+  try {
+    const topAds = (creatives || []).slice(0, 5).map((c, i) => `
+      <tr>
+        <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb">
+          <div style="font-size:13px;font-weight:600;color:#111827">${i+1}. ${c.adName}</div>
+          <div style="font-size:11px;color:#6b7280;margin-top:2px">${c.campaignName}</div>
+        </td>
+        <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;text-align:center;font-size:13px;font-weight:600;color:${c.ctr >= 2 ? '#059669' : c.ctr >= 1 ? '#374151' : '#dc2626'}">${c.ctr.toFixed(2)}%</td>
+        <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;text-align:center;font-size:13px;color:#374151">$${Math.round(c.spend).toLocaleString()}</td>
+        <td style="padding:10px 12px;border-bottom:1px solid #e5e7eb;text-align:center;font-size:13px;color:#374151">${c.mainResult ? c.mainResult.value + ' ' + c.mainResult.label : '—'}</td>
+      </tr>`).join('');
+
+    const andromedaHtml = andromedaVerdict ? `
+      <div style="background:#1e1b4b;border-radius:12px;padding:20px;margin:20px 0">
+        <div style="color:#a5b4fc;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;margin-bottom:12px">✦ Agente Andrómeda — Veredicto Final</div>
+        <div style="color:#e0e7ff;font-size:14px;line-height:1.7;margin-bottom:12px">${andromedaVerdict.resumen || ''}</div>
+        ${andromedaVerdict.ganador ? '<div style="background:#312e81;border-radius:8px;padding:10px 14px;margin-bottom:8px"><span style="color:#a5b4fc;font-size:11px;font-weight:700">🏆 GANADOR</span><div style="color:#e0e7ff;font-size:13px;margin-top:4px">' + andromedaVerdict.ganador + '</div></div>' : ''}
+        ${andromedaVerdict.accion_inmediata ? '<div style="background:#312e81;border-radius:8px;padding:10px 14px;margin-bottom:8px"><span style="color:#a5b4fc;font-size:11px;font-weight:700">⚡ ACCIÓN INMEDIATA</span><div style="color:#e0e7ff;font-size:13px;margin-top:4px">' + andromedaVerdict.accion_inmediata + '</div></div>' : ''}
+        ${andromedaVerdict.redistribucion ? '<div style="background:#312e81;border-radius:8px;padding:10px 14px"><span style="color:#a5b4fc;font-size:11px;font-weight:700">💰 REDISTRIBUCIÓN</span><div style="color:#e0e7ff;font-size:13px;margin-top:4px">' + andromedaVerdict.redistribucion + '</div></div>' : ''}
+      </div>` : '';
+
+    const html = `<!DOCTYPE html>
+<html><head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:0;background:#f3f4f6;font-family:'Segoe UI',system-ui,sans-serif">
+<div style="max-width:600px;margin:0 auto;padding:24px 16px">
+
+  <!-- Header -->
+  <div style="background:#111827;border-radius:12px 12px 0 0;padding:24px;display:flex;align-items:center;gap:12px">
+    <div style="width:36px;height:36px;background:#4f46e5;border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:800;color:#fff;font-size:16px">N</div>
+    <div>
+      <div style="color:#fff;font-weight:700;font-size:16px">Nexus Intelligence</div>
+      <div style="color:#9ca3af;font-size:12px">Análisis de Creatividades · ${client.name}</div>
+    </div>
+    <div style="margin-left:auto;color:#9ca3af;font-size:12px">${new Date().toLocaleDateString('es-AR')}</div>
+  </div>
+
+  <!-- Body -->
+  <div style="background:#fff;padding:24px;border:1px solid #e5e7eb">
+
+    <!-- Andrómeda -->
+    ${andromedaHtml}
+
+    <!-- Tabla de anuncios -->
+    <div style="font-size:13px;font-weight:700;color:#111827;margin-bottom:12px">Top anuncios del período</div>
+    <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;border-collapse:collapse">
+      <thead>
+        <tr style="background:#f9fafb">
+          <th style="padding:10px 12px;text-align:left;font-size:11px;color:#6b7280;font-weight:600;text-transform:uppercase;letter-spacing:.05em">Anuncio</th>
+          <th style="padding:10px 12px;text-align:center;font-size:11px;color:#6b7280;font-weight:600;text-transform:uppercase;letter-spacing:.05em">CTR</th>
+          <th style="padding:10px 12px;text-align:center;font-size:11px;color:#6b7280;font-weight:600;text-transform:uppercase;letter-spacing:.05em">Gasto</th>
+          <th style="padding:10px 12px;text-align:center;font-size:11px;color:#6b7280;font-weight:600;text-transform:uppercase;letter-spacing:.05em">Resultado</th>
+        </tr>
+      </thead>
+      <tbody>${topAds}</tbody>
+    </table>
+
+    ${aiAnalysis?.winner ? '<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:14px;margin-top:16px"><div style="color:#166534;font-size:11px;font-weight:700;margin-bottom:4px">🏆 ANUNCIO GANADOR</div><div style="color:#166534;font-size:13px">' + aiAnalysis.winner + '</div></div>' : ''}
+    ${aiAnalysis?.budget_suggestion ? '<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:14px;margin-top:12px"><div style="color:#1d4ed8;font-size:11px;font-weight:700;margin-bottom:4px">💰 PRESUPUESTO</div><div style="color:#1d4ed8;font-size:13px">' + aiAnalysis.budget_suggestion + '</div></div>' : ''}
+  </div>
+
+  <!-- Footer -->
+  <div style="background:#111827;border-radius:0 0 12px 12px;padding:16px 24px;text-align:center">
+    <div style="color:#6b7280;font-size:11px">Nexus Intelligence · <a href="https://doctanexus.com" style="color:#818cf8;text-decoration:none">Docta Nexus</a></div>
+  </div>
+
+</div>
+</body></html>`;
+
+    const emailRes = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + RESEND_KEY },
+      body: JSON.stringify({
+        from: 'Nexus Intelligence <onboarding@resend.dev>',
+        to: [toEmail],
+        subject: '🎨 Análisis de Creatividades — ' + client.name + ' · ' + new Date().toLocaleDateString('es-AR'),
+        html
+      })
+    });
+    const emailData = await emailRes.json();
+    if (!emailRes.ok) throw new Error(emailData.message || 'Error enviando email');
+    res.json({ ok: true, id: emailData.id });
+  } catch(e) {
+    console.error('[send-creatives-email]', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── CREATIVIDADES ─────────────────────────────────────────────
+
+app.get('/api/:slug/creatives', async (req, res) => {
+  const slug   = req.params.slug;
+  const client = await loadClientWithCreds(slug);
+  if (!client) return res.status(404).json({ error: 'Cliente no encontrado' });
+  const { password, period, withAnalysis } = req.query;
+  if (!(await checkPassword(slug, password))) return res.status(401).json({ error: 'No autorizado' });
+
+  try {
+    const token     = client.access_token;
+    const accountId = client.ad_account_id;
+    const preset    = period || 'last_7d';
+
+    // Métricas de anuncios + batch de creatives en paralelo
+    const [adsData, batchRes] = await Promise.all([
+      metaFetch('/' + accountId + '/insights?fields=ad_id,ad_name,adset_name,campaign_name,spend,impressions,clicks,ctr,cpm,reach,frequency,actions&date_preset=' + preset + '&level=ad&sort=spend_descending&limit=12&', token),
+      metaFetch('/' + accountId + '/ads?fields=id,creative{thumbnail_url,image_url,video_id,title,body}&limit=50&', token).catch(() => ({ data: [] }))
+    ]);
+
+    const ads = adsData.data || [];
+    if (!ads.length) return res.json({ creatives: [], period: preset, total: 0 });
+
+    // Mapa de creatives por ad_id
+    const creativeMap = {};
+    (batchRes.data || []).forEach(ad => { if (ad.creative) creativeMap[ad.id] = ad.creative; });
+
+    const resultLabels = {
+      'onsite_conversion.total_messaging_connection': 'Mensajes',
+      'offsite_conversion.fb_pixel_purchase': 'Compras',
+      'offsite_conversion.fb_pixel_lead': 'Leads',
+      'lead': 'Leads', 'post_engagement': 'Interacciones', 'link_click': 'Clics',
+    };
+
+    const creatives = ads.map(ad => {
+      const spend = parseFloat(ad.spend || 0);
+      const actions = ad.actions || [];
+      const c = creativeMap[ad.ad_id] || {};
+
+      let mainResult = null;
+      for (const k of Object.keys(resultLabels)) {
+        const a = actions.find(x => x.action_type === k);
+        if (a && parseInt(a.value) > 0) {
+          mainResult = { type: k, label: resultLabels[k], value: parseInt(a.value),
+            cpa: spend > 0 ? Math.round(spend / parseInt(a.value) * 100) / 100 : null };
+          break;
+        }
+      }
+
+      return {
+        adId: ad.ad_id, adName: ad.ad_name,
+        adsetName: ad.adset_name, campaignName: ad.campaign_name,
+        spend, impressions: parseInt(ad.impressions || 0),
+        clicks: parseInt(ad.clicks || 0),
+        ctr: parseFloat(ad.ctr || 0), cpm: parseFloat(ad.cpm || 0),
+        reach: parseInt(ad.reach || 0), frequency: parseFloat(ad.frequency || 0),
+        imageUrl: c.thumbnail_url || c.image_url || null,
+        mediaType: c.video_id ? 'video' : 'image',
+        title: c.title || '', body: c.body || '',
+        mainResult,
+      };
+    });
+
+    // Análisis IA general (rápido, siempre)
+    let aiAnalysis = null;
+    if (ANTHROPIC_KEY && creatives.length > 0) {
+      try {
+        const summary = creatives.slice(0, 8).map((c, i) =>
+          (i+1) + '. "' + c.adName + '" | $' + Math.round(c.spend) + ' | CTR ' + c.ctr.toFixed(2) + '% | Frec ' + c.frequency.toFixed(1) + (c.mainResult ? ' | ' + c.mainResult.label + ': ' + c.mainResult.value : '')
+        ).join('\n');
+        const prompt = 'Analizá estas creatividades de Meta Ads.\n\n' + summary + '\n\nRespondé SOLO en JSON: {"winner":"anuncio ganador y por qué","loser":"peor anuncio y qué cambiarías","pattern":"patrón detectado","recommendations":["acción 1","acción 2","acción 3"],"budget_suggestion":"sugerencia de presupuesto"}';
+        const r = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
+          body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 500, messages: [{ role: 'user', content: prompt }] })
+        });
+        const d = await r.json();
+        logAiCall({ slug: req.params?.slug || 'creatives', model: 'claude-haiku-4-5-20251001', callType: 'creatives_general_analysis', inputTokens: d.usage?.input_tokens || 0, outputTokens: d.usage?.output_tokens || 0 }).catch(()=>{});
+        aiAnalysis = JSON.parse((d.content?.[0]?.text || '{}').replace(/```json|```/g, '').trim());
+      } catch(e) { console.warn('[creatives AI]', e.message); }
+    }
+
+    // Análisis dual por anuncio (solo si se pide explícitamente)
+    let claudeAnalyses = [], gptAnalyses = [], andromedaVerdict = null;
+    if (withAnalysis === 'true' && creatives.length > 0) {
+      const top = creatives.slice(0, 6);
+      [claudeAnalyses, gptAnalyses] = await Promise.all([
+        Promise.all(top.map(c => analyzeCreativeWithClaude(c, slug).catch(() => ({})))),
+        OPENAI_KEY ? Promise.all(top.map(c => analyzeCreativeWithGPT(c, slug).catch(() => ({})))) : Promise.resolve(top.map(() => ({}))),
+      ]);
+      andromedaVerdict = await generateAndromedaVerdict(top, claudeAnalyses, gptAnalyses, slug).catch(() => null);
+      // Inyectar análisis en cada creative
+      top.forEach((c, i) => {
+        c.claudeAnalysis = claudeAnalyses[i] || null;
+        c.gptAnalysis    = gptAnalyses[i]    || null;
+      });
+    }
+
+    res.json({ creatives, aiAnalysis, andromedaVerdict, period: preset, total: creatives.length });
+  } catch(e) {
+    console.error('[creatives]', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+
+// ── SEGUIDORES FB + IG ────────────────────────────────────────
+app.get('/api/:slug/followers', async (req, res) => {
+  const slug = req.params.slug;
+  const client = await loadClientWithCreds(slug);
+  if (!client) return res.status(404).json({ error: 'Cliente no encontrado' });
+  const { password } = req.query;
+  if (!(await checkPassword(slug, password))) return res.status(401).json({ error: 'No autorizado' });
+
+  try {
+    const token = client.access_token;
+    const results = { fb: null, ig: null, history: [] };
+
+    // Facebook: fans de la página
+    if (client.fb_page_id) {
+      try {
+        const fbData = await metaFetch('/' + client.fb_page_id + '?fields=fan_count,followers_count&', token);
+        results.fb = {
+          fans:      fbData.fan_count      || 0,
+          followers: fbData.followers_count || fbData.fan_count || 0,
+        };
+      } catch(e) { console.warn('[followers] FB error:', e.message); }
+    }
+
+    // Instagram: followers de la cuenta IG Business
+    if (client.ig_account_id) {
+      try {
+        const igData = await metaFetch('/' + client.ig_account_id + '?fields=followers_count,follows_count,media_count,username&', token);
+        results.ig = {
+          followers: igData.followers_count || 0,
+          following:  igData.follows_count  || 0,
+          posts:      igData.media_count    || 0,
+          username:   igData.username       || '',
+        };
+      } catch(e) { console.warn('[followers] IG error:', e.message); }
+    }
+
+    // Historial para calcular unfollows (últimos 7 snapshots)
+    const history = await loadHistoryDB(slug, 7);
+    const followerHistory = history
+      .filter(h => h.followers)
+      .map(h => ({ date: h.date, fb: h.followers?.fb?.followers || 0, ig: h.followers?.ig?.followers || 0 }));
+
+    // Calcular unfollows estimados (diferencia negativa entre días)
+    let fbUnfollows = 0, igUnfollows = 0;
+    if (followerHistory.length >= 2) {
+      const latest  = followerHistory[0];
+      const prev    = followerHistory[1];
+      fbUnfollows = Math.max(0, (prev.fb || 0) - (results.fb?.followers || latest.fb || 0));
+      igUnfollows = Math.max(0, (prev.ig || 0) - (results.ig?.followers || latest.ig || 0));
+    }
+
+    // Guardar snapshot de followers en el data de hoy (Sub-paso 3.4: en Supabase)
+    await patchTodaySnapshotDB(slug, { followers: results });
+
+    res.json({ ...results, fbUnfollows, igUnfollows, history: followerHistory });
+  } catch(e) {
+    console.error('[followers]', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+
+// ── ANÁLISIS CON GPT ─────────────────────────────────────────
+app.post('/api/:slug/analyze-gpt', async (req, res) => {
+  const slug = req.params.slug;
+  const client = await loadClient(slug);
+  if (!client) return res.status(404).json({ error: 'Cliente no encontrado' });
+  const { password, period } = req.body;
+  if (!(await checkPassword(slug, password))) return res.status(401).json({ error: 'No autorizado' });
+  if (!OPENAI_KEY) return res.status(500).json({ error: 'OpenAI API key no configurada' });
+
+  try {
+    const history = await loadHistoryDB(slug, 1);
+    if (!history.length) return res.status(400).json({ error: 'No hay datos. Actualizá primero.' });
+    const metrics = history[0].metrics;
+    const acc = metrics.account || {};
+    const camps = (metrics.campaigns || []).slice(0, 8);
+
+    const campsSummary = camps.map(c =>
+      `- ${c.name}: CTR ${(c.ctr||0).toFixed(2)}% | $${Math.round(c.spend||0)} | Fase: ${c.phase||'—'} | Frec: ${(c.frequency||0).toFixed(1)}`
+    ).join('\n');
+
+    const prompt = `Sos un experto senior en Meta Ads. Analizá estas métricas de la cuenta publicitaria "${client.name}".
+
+MÉTRICAS GENERALES:
+- Gasto: $${Math.round(acc.spend||0)} | CTR: ${(acc.ctr||0).toFixed(2)}% | CPM: $${Math.round(acc.cpm||0)} | Frecuencia: ${(acc.frequency||0).toFixed(1)}
+- Mensajes: ${acc.messagingConn||0} | Leads: ${acc.leads||0} | Compras: ${acc.purchases||0} | ROAS: ${acc.roas?acc.roas.toFixed(2)+'x':'—'}
+
+CAMPAÑAS:
+${campsSummary}
+
+Respondé SOLO en JSON con este formato exacto:
+{
+  "health_score": número del 1 al 100,
+  "summary_items": [{"icon":"emoji","titulo":"título","detalle":"detalle en 1-2 oraciones"}],
+  "algorithm_items": [{"icon":"emoji","titulo":"título","detalle":"detalle"}],
+  "recommendations": ["recomendación concreta 1","recomendación concreta 2","recomendación concreta 3"],
+  "alerts": [],
+  "critical_campaigns": [],
+  "conclusion_items": [{"icon":"emoji","titulo":"título","detalle":"detalle"}]
+}`;
+
+    const r = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + OPENAI_KEY },
+      body: JSON.stringify({ model: 'gpt-4o-mini', max_tokens: 1200, messages: [{ role: 'user', content: prompt }] })
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error?.message || 'Error OpenAI');
+    logAiCall({ slug: req.params?.slug || 'dashboard', model: 'gpt-4o-mini', callType: 'dashboard_analysis_gpt', inputTokens: d.usage?.prompt_tokens || 0, outputTokens: d.usage?.completion_tokens || 0 }).catch(()=>{});
+    const text = d.choices?.[0]?.message?.content || '{}';
+    const analysis = JSON.parse(text.replace(/```json|```/g, '').trim());
+
+    res.json({ analysis, model: 'gpt-4o-mini' });
+  } catch(e) {
+    console.error('[analyze-gpt]', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── TEST de conexión con Google Sheets ───────────────────────
+app.get('/api/test-sheets', async (req, res) => {
+  try {
+    if (!SHEET_ID) return res.json({ ok: false, error: 'GOOGLE_SHEET_ID no configurado' });
+    const sheets = await getSheetsClient();
+    if (!sheets) return res.json({ ok: false, error: 'Error autenticando con Google' });
+    // Intentar leer el sheet
+    const result = await sheets.spreadsheets.values.get({
+      spreadsheetId: SHEET_ID,
+      range: 'Hoja 1!A1:A3',
+    });
+    // Intentar escribir una fila de test
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: SHEET_ID,
+      range: 'Hoja 1!A:J',
+      valueInputOption: 'USER_ENTERED',
+    });
+    res.json({ ok: true, rows: result.data.values, sheetId: SHEET_ID });
+  } catch(e) {
+    res.json({ ok: false, error: e.message });
+  }
+});
+
+// ── COSTOS IA — leer desde Google Sheets ─────────────────────
+app.get('/api/costs', async (req, res) => {
+  try {
+    if (!SHEET_ID) return res.json({ rows: [], error: 'GOOGLE_SHEET_ID no configurado' });
+    const sheets = await getSheetsClient();
+    if (!sheets) return res.json({ rows: [], error: 'Error de autenticación con Google' });
+    const result = await sheets.spreadsheets.values.get({
+      spreadsheetId: SHEET_ID,
+      range: 'Hoja 1!A:J',
+    });
+    const rows = result.data.values || [];
+    res.json({ rows });
+  } catch(e) {
+    console.error('[costs]', e.message);
+    res.status(500).json({ rows: [], error: e.message });
+  }
+});
+
+app.get('/health', async (_, res) => res.json({ status: 'ok', clients: await listClients(), version: '2.0' }));
+
+app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
+
+app.listen(PORT, async () => {
+  console.log('\n✦ Growth Intelligence Platform — Docta Nexus');
+  console.log('  http://localhost:' + PORT);
+  console.log('  Clientes: ' + ((await listClients()).join(', ') || 'ninguno') + '\n');
+});
