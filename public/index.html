@@ -1,0 +1,1105 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Growth Intelligence — El AI Growth Operating System</title>
+<meta name="description" content="Conectá tus fuentes de datos y dejá que un equipo de agentes de IA analice campañas, descubra oportunidades, priorice acciones y te diga exactamente qué hacer para crecer.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js" defer></script>
+<style>
+  :root{
+    --bg:#050609;
+    --bg-2:#080A10;
+    --surface:rgba(255,255,255,0.03);
+    --surface-solid:#12141C;
+    --surface-hover:#181B26;
+    --border:rgba(255,255,255,0.08);
+    --border-strong:rgba(255,255,255,0.14);
+    --text:#F7F8FA;
+    --text-dim:#A3A9B8;
+    --text-faint:#5C6273;
+
+    --blue:#3B82F6;
+    --cyan:#22D3EE;
+    --violet:#8B5CF6;
+    --turquoise:#2DD4BF;
+    --ai-green:#34D399;
+    --amber:#F5A623;
+    --coral:#FF6B5D;
+    --pink:#EC6BAE;
+
+    --gradient-brand:linear-gradient(120deg, var(--violet) 0%, var(--blue) 50%, var(--cyan) 100%);
+    --gradient-ai:linear-gradient(135deg, var(--violet) 0%, var(--ai-green) 100%);
+    --radius-lg:24px;
+    --radius-md:16px;
+    --radius-sm:10px;
+  }
+
+  *{margin:0;padding:0;box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:'Inter',sans-serif;
+    line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+    overflow-x:hidden;
+  }
+
+  h1,h2,h3,h4{font-family:'Space Grotesk',sans-serif;letter-spacing:-0.03em;font-weight:600;}
+  .mono{font-family:'JetBrains Mono',monospace;}
+  a{color:inherit;text-decoration:none;}
+  img{max-width:100%;display:block;}
+  :focus-visible{outline:2px solid var(--cyan);outline-offset:3px;}
+
+  .wrap{max-width:1240px;margin:0 auto;padding:0 32px;}
+
+  .gradient-text{
+    background:var(--gradient-brand);
+    -webkit-background-clip:text;
+    background-clip:text;
+    color:transparent;
+  }
+
+  [data-lucide]{width:1em;height:1em;stroke-width:2;vertical-align:-2px;}
+
+  .reveal{opacity:0;transform:translateY(24px);transition:opacity .7s ease, transform .7s ease;}
+  .reveal.is-visible{opacity:1;transform:none;}
+  @media (prefers-reduced-motion: reduce){.reveal{opacity:1;transform:none;transition:none;}}
+
+  header{
+    position:fixed;top:0;left:0;right:0;z-index:100;
+    background:rgba(5,6,9,0.7);
+    backdrop-filter:blur(16px) saturate(160%);
+    border-bottom:1px solid var(--border);
+  }
+  nav{display:flex;align-items:center;justify-content:space-between;height:76px;}
+
+  .brand-lockup{display:flex;align-items:center;gap:11px;font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:16.5px;}
+  .brand-orb{
+    width:30px;height:30px;border-radius:9px;
+    background:var(--gradient-ai);
+    box-shadow:0 0 22px rgba(139,92,246,0.55);
+    flex-shrink:0;
+  }
+  .brand-lockup small{display:block;font-family:'Inter',sans-serif;font-weight:400;font-size:10.5px;color:var(--text-faint);letter-spacing:0.05em;text-transform:uppercase;}
+
+  .nav-links{display:flex;align-items:center;gap:36px;font-size:14.5px;color:var(--text-dim);}
+  .nav-links a:hover{color:var(--text);}
+  .has-dropdown{position:relative;}
+  .dropdown{
+    position:absolute;top:calc(100% + 16px);left:50%;transform:translateX(-50%);
+    background:var(--surface-solid);border:1px solid var(--border-strong);border-radius:var(--radius-md);
+    padding:10px;min-width:230px;display:none;box-shadow:0 30px 60px rgba(0,0,0,0.5);
+  }
+  .has-dropdown:hover .dropdown,.has-dropdown:focus-within .dropdown{display:block;}
+  .dropdown a{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:9px;font-size:14px;color:var(--text-dim);}
+  .dropdown a:hover{background:var(--surface-hover);color:var(--text);}
+  .dropdown .sw{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+
+  .btn{
+    display:inline-flex;align-items:center;gap:8px;padding:13px 24px;border-radius:11px;
+    font-size:14.5px;font-weight:600;border:1px solid transparent;cursor:pointer;
+    transition:transform .18s ease, box-shadow .18s ease, opacity .18s ease;
+    white-space:nowrap;
+  }
+  .btn:hover{transform:translateY(-2px);}
+  .btn-primary{background:var(--gradient-brand);color:#fff;box-shadow:0 8px 30px rgba(59,130,246,0.35);}
+  .btn-primary:hover{box-shadow:0 12px 40px rgba(139,92,246,0.5);}
+  .btn-ghost{background:var(--surface);border-color:var(--border-strong);color:var(--text);}
+  .btn-ghost:hover{background:var(--surface-hover);}
+  .btn-lg{padding:17px 30px;font-size:16px;border-radius:13px;}
+  .btn-login{background:var(--surface);border:1px solid var(--border-strong);color:var(--text);padding:10px 18px;font-size:14px;}
+
+  .hero{position:relative;min-height:100vh;display:flex;align-items:center;padding:150px 0 90px;overflow:hidden;}
+  .hero-glow{position:absolute;inset:0;pointer-events:none;z-index:0;}
+  .hero-glow span{position:absolute;border-radius:50%;filter:blur(90px);opacity:0.35;}
+  .glow-1{width:640px;height:640px;background:var(--violet);top:-220px;left:-160px;}
+  .glow-2{width:560px;height:560px;background:var(--blue);top:-100px;right:-200px;}
+  .glow-3{width:480px;height:480px;background:var(--cyan);bottom:-260px;left:35%;opacity:0.22;}
+
+  .hero-inner{position:relative;z-index:1;text-align:center;max-width:920px;margin:0 auto;}
+
+  .eyebrow{
+    display:inline-flex;align-items:center;gap:9px;font-size:13.5px;color:var(--text-dim);
+    background:var(--surface);border:1px solid var(--border-strong);padding:8px 16px;border-radius:100px;
+    font-weight:500;margin-bottom:30px;
+  }
+  .eyebrow .pulse-dot{width:7px;height:7px;border-radius:50%;background:var(--ai-green);box-shadow:0 0 8px var(--ai-green);animation:pulse 2s ease-in-out infinite;}
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:0.4;}}
+
+  .hero h1{font-size:clamp(42px, 6.8vw, 84px);line-height:1.02;margin-bottom:26px;}
+  .hero p.lead{font-size:clamp(17px, 1.6vw, 21px);color:var(--text-dim);max-width:640px;margin:0 auto 40px;}
+  .hero-ctas{display:flex;gap:16px;justify-content:center;margin-bottom:70px;flex-wrap:wrap;}
+
+  .dash-mock{
+    position:relative;max-width:960px;margin:0 auto;border-radius:var(--radius-lg);
+    border:1px solid var(--border-strong);
+    background:linear-gradient(180deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.015) 100%);
+    box-shadow:0 40px 100px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.02);
+    padding:28px;backdrop-filter:blur(6px);
+  }
+  .dash-topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:22px;}
+  .dash-dots{display:flex;gap:6px;}
+  .dash-dots span{width:9px;height:9px;border-radius:50%;background:var(--border-strong);}
+  .dash-title{font-size:12.5px;color:var(--text-faint);font-family:'JetBrains Mono',monospace;}
+  .ai-badge{
+    width:34px;height:34px;border-radius:9px;background:var(--gradient-ai);
+    display:flex;align-items:center;justify-content:center;flex-shrink:0;color:#fff;
+    box-shadow:0 0 18px rgba(52,211,153,0.4);
+  }
+
+  .float-card{
+    position:absolute;background:var(--surface-solid);border:1px solid var(--border-strong);border-radius:var(--radius-sm);
+    padding:14px 16px;box-shadow:0 20px 50px rgba(0,0,0,0.5);font-size:13px;
+    display:flex;align-items:center;gap:10px;animation:float 6s ease-in-out infinite;
+  }
+  .float-1{top:8%;left:-6%;animation-delay:0s;}
+  .float-2{bottom:12%;right:-7%;animation-delay:1.5s;}
+  @keyframes float{0%,100%{transform:translateY(0);}50%{transform:translateY(-14px);}}
+  @media (prefers-reduced-motion: reduce){.float-card{animation:none;}}
+  @media (max-width:900px){.float-card{display:none;}}
+  .float-icon{width:26px;height:26px;border-radius:7px;display:flex;align-items:center;justify-content:center;color:#fff;flex-shrink:0;}
+
+  .alert-card{
+    background:linear-gradient(160deg, rgba(255,107,93,0.08), rgba(139,92,246,0.06));
+    border:1px solid rgba(255,107,93,0.28);
+    border-radius:var(--radius-md);
+    padding:26px;
+    text-align:left;
+  }
+  .alert-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;flex-wrap:wrap;gap:10px;}
+  .alert-badge{
+    display:inline-flex;align-items:center;gap:8px;font-size:14px;font-weight:600;color:var(--coral);
+    background:rgba(255,107,93,0.14);border:1px solid rgba(255,107,93,0.3);padding:7px 14px;border-radius:100px;
+  }
+  .alert-roas{font-size:15px;color:var(--text-dim);}
+  .alert-roas strong{font-family:'JetBrains Mono',monospace;color:var(--ai-green);font-size:17px;}
+  .alert-arrow{display:flex;justify-content:center;color:var(--text-faint);margin:6px 0 14px;}
+  .alert-reco{
+    display:flex;gap:14px;align-items:flex-start;
+    background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);
+    padding:18px;margin-bottom:16px;
+  }
+  .alert-reco-label{display:block;font-size:11.5px;font-weight:700;color:var(--violet);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;}
+  .alert-reco p{font-size:15.5px;color:var(--text);}
+  .alert-reco p strong{color:var(--cyan);}
+  .alert-impact{
+    display:flex;align-items:center;justify-content:space-between;
+    background:rgba(52,211,153,0.1);border:1px solid rgba(52,211,153,0.3);
+    border-radius:var(--radius-sm);padding:16px 20px;
+  }
+  .alert-impact-label{font-size:13.5px;color:var(--text-dim);}
+  .alert-impact-value{font-family:'JetBrains Mono',monospace;font-size:24px;font-weight:700;color:var(--ai-green);}
+
+  .decision-card{
+    max-width:520px;margin:0 auto;text-align:center;
+    background:var(--surface);border:1px solid var(--border-strong);border-radius:var(--radius-lg);
+    padding:44px 40px;box-shadow:0 30px 80px rgba(0,0,0,0.45);
+  }
+  .decision-row{margin-bottom:28px;}
+  .decision-label{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:18px;background:var(--gradient-brand);-webkit-background-clip:text;background-clip:text;color:transparent;}
+  .decision-step{display:flex;flex-direction:column;gap:8px;padding:8px 0;}
+  .decision-tag{font-size:13.5px;color:var(--text-faint);}
+  .decision-value{font-family:'Space Grotesk',sans-serif;font-size:26px;font-weight:700;}
+  .decision-value.mono{font-family:'JetBrains Mono',monospace;}
+  .decision-step.highlight .decision-value{color:var(--ai-green);}
+  .decision-arrow{color:var(--text-faint);margin:10px 0;display:flex;justify-content:center;}
+
+  .qa-flow{display:flex;flex-direction:column;align-items:center;max-width:420px;margin:0 auto;}
+  .qa-node{
+    width:100%;display:flex;align-items:center;gap:12px;justify-content:center;
+    background:var(--surface);border:1px solid var(--border-strong);border-radius:var(--radius-md);
+    padding:18px 24px;font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:16px;
+    box-shadow:0 12px 30px rgba(0,0,0,0.3);
+  }
+  .qa-node i{color:var(--n, var(--text-dim));}
+  .qa-node.qa-core{
+    background:var(--gradient-ai);border-color:transparent;color:#fff;font-size:19px;
+    box-shadow:0 0 34px rgba(52,211,153,0.4);padding:22px 24px;
+  }
+  .qa-node.qa-result{
+    background:var(--gradient-brand);border-color:transparent;color:#fff;font-size:19px;
+    box-shadow:0 0 34px rgba(139,92,246,0.4);
+  }
+  .qa-arrow{color:var(--text-faint);margin:8px 0;}
+
+  .value-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;}
+  .value-card{
+    background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-md);
+    padding:28px;text-align:center;transition:transform .2s ease, border-color .2s ease;
+  }
+  .value-card:hover{transform:translateY(-3px);border-color:var(--border-strong);}
+  .value-icon{
+    width:44px;height:44px;border-radius:12px;margin:0 auto 16px;
+    background:color-mix(in srgb, var(--v) 18%, transparent);
+    color:var(--v);display:flex;align-items:center;justify-content:center;
+  }
+  .value-card h3{font-size:16px;}
+
+  .chat-card{
+    max-width:640px;margin:0 auto;display:flex;gap:18px;align-items:flex-start;
+  }
+  .chat-avatar{
+    width:52px;height:52px;border-radius:14px;flex-shrink:0;
+    background:var(--gradient-ai);display:flex;align-items:center;justify-content:center;color:#fff;font-size:22px;
+    box-shadow:0 0 24px rgba(52,211,153,0.4);
+  }
+  .chat-bubble{
+    flex:1;background:var(--surface);border:1px solid var(--border-strong);border-radius:var(--radius-lg);
+    padding:32px 34px;box-shadow:0 30px 80px rgba(0,0,0,0.45);
+  }
+  .chat-line{font-size:17px;color:var(--text-dim);margin-bottom:12px;}
+  .chat-line:last-child{margin-bottom:0;}
+  .chat-name{color:var(--text);font-weight:600;}
+  .chat-line strong{color:var(--text);}
+  .chat-em{color:var(--text-faint);font-size:14px;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:8px;}
+  .chat-highlight{
+    background:rgba(255,107,93,0.1);border-left:3px solid var(--coral);
+    padding:12px 16px;border-radius:0 8px 8px 0;color:var(--text);font-size:17.5px;
+  }
+  .chat-list{margin:8px 0 16px 0;padding-left:0;list-style:none;}
+  .chat-list li{color:var(--text-dim);font-size:15.5px;padding-left:20px;position:relative;margin-bottom:6px;}
+  .chat-list li::before{content:"•";position:absolute;left:4px;color:var(--violet);}
+  .chat-question{color:var(--text);font-weight:600;font-size:17.5px;}
+
+  .goal-grid{display:flex;flex-wrap:wrap;gap:14px;justify-content:center;}
+  .goal-chip{
+    display:inline-flex;align-items:center;gap:10px;
+    background:var(--surface);border:1px solid var(--border-strong);border-radius:100px;
+    padding:14px 22px;font-size:15.5px;font-weight:600;color:var(--text);
+    transition:transform .18s ease, border-color .18s ease, background .18s ease;
+  }
+  .goal-chip i{color:var(--cyan);}
+  .goal-chip:hover{transform:translateY(-2px);border-color:var(--violet);background:var(--surface-hover);}
+
+  .counter-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:16px;}
+  .counter-card{
+    background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-md);
+    padding:28px 18px;text-align:center;
+  }
+  .counter-value{
+    font-family:'JetBrains Mono',monospace;font-size:30px;font-weight:700;
+    background:var(--gradient-brand);-webkit-background-clip:text;background-clip:text;color:transparent;
+    margin-bottom:10px;
+  }
+  .counter-card p{font-size:13.5px;color:var(--text-dim);}
+  @media (max-width:960px){.counter-grid{grid-template-columns:repeat(3,1fr);}}
+  @media (max-width:600px){.counter-grid{grid-template-columns:repeat(2,1fr);}}
+
+  .contact-grid{display:grid;grid-template-columns:1.3fr 1fr;gap:24px;max-width:920px;margin:0 auto;align-items:stretch;}
+  .contact-form{
+    background:var(--surface);border:1px solid var(--border-strong);border-radius:var(--radius-lg);
+    padding:36px;display:flex;flex-direction:column;gap:18px;
+  }
+  .contact-form label{display:flex;flex-direction:column;gap:8px;font-size:13.5px;color:var(--text-dim);font-weight:600;}
+  .form-row{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+  .contact-form input,.contact-form textarea{
+    background:var(--bg-2);border:1px solid var(--border-strong);border-radius:10px;
+    padding:12px 14px;color:var(--text);font-family:'Inter',sans-serif;font-size:14.5px;font-weight:400;
+    resize:vertical;
+  }
+  .contact-form input:focus,.contact-form textarea:focus{outline:2px solid var(--cyan);outline-offset:1px;}
+  .contact-form button{align-self:flex-start;margin-top:6px;}
+  .form-status{font-size:13.5px;color:var(--ai-green);min-height:18px;}
+
+  .brand-svg{width:1em;height:1em;display:inline-block;vertical-align:-0.15em;}
+  .trust-logo .brand-svg{width:22px;height:22px;}
+  .module-icon.brand-bg{background:#fff;}
+  .module-icon.brand-bg .brand-svg{width:24px;height:24px;}
+  .qa-node .brand-svg{width:20px;height:20px;vertical-align:-0.25em;}
+
+  .whatsapp-card{
+    background:linear-gradient(160deg, rgba(52,211,153,0.12), rgba(34,211,238,0.05));
+    border:1px solid rgba(52,211,153,0.3);border-radius:var(--radius-lg);
+    padding:32px;display:flex;flex-direction:column;gap:14px;justify-content:center;
+    transition:transform .18s ease, border-color .18s ease;
+  }
+  .whatsapp-card:hover{transform:translateY(-3px);border-color:rgba(52,211,153,0.5);}
+  .whatsapp-icon{
+    width:48px;height:48px;border-radius:13px;background:var(--ai-green);color:#fff;
+    display:flex;align-items:center;justify-content:center;font-size:22px;
+  }
+  .whatsapp-card h3{font-size:18px;margin-bottom:6px;}
+  .whatsapp-card p{font-size:14px;color:var(--text-dim);margin-bottom:14px;}
+  .whatsapp-link{font-size:14px;font-weight:600;color:var(--ai-green);display:inline-flex;align-items:center;gap:6px;}
+
+  .wa-float{
+    position:fixed;bottom:26px;right:26px;z-index:90;
+    width:58px;height:58px;border-radius:50%;background:var(--ai-green);color:#fff;
+    display:flex;align-items:center;justify-content:center;font-size:26px;
+    box-shadow:0 12px 30px rgba(52,211,153,0.45);
+    transition:transform .18s ease;
+  }
+  .wa-float:hover{transform:scale(1.08);}
+
+  @media (max-width:900px){
+    .contact-grid{grid-template-columns:1fr;}
+    .form-row{grid-template-columns:1fr;}
+  }
+
+  .trust{padding:56px 0;border-top:1px solid var(--border);border-bottom:1px solid var(--border);}
+  .trust-label{text-align:center;font-size:13px;color:var(--text-faint);margin-bottom:28px;letter-spacing:0.03em;}
+  .trust-row{display:flex;justify-content:center;align-items:center;gap:44px;flex-wrap:wrap;}
+  .trust-logo{display:flex;align-items:center;gap:10px;font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:16px;color:var(--text-dim);opacity:0.9;}
+  .trust-logo .ic{width:22px;height:22px;}
+
+  section{padding:130px 0;position:relative;}
+  .section-head{max-width:680px;margin:0 auto 70px;text-align:center;}
+  .section-head .eyebrow{margin-bottom:22px;}
+  .section-head h2{font-size:clamp(30px, 4vw, 46px);margin-bottom:18px;}
+  .section-head p{color:var(--text-dim);font-size:18px;}
+
+  .ai-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:22px;}
+  .ai-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-md);padding:32px;transition:border-color .2s ease, transform .2s ease, background .2s ease;}
+  .ai-card:hover{transform:translateY(-4px);border-color:var(--border-strong);background:var(--surface-hover);}
+  .ai-icon{width:46px;height:46px;border-radius:12px;display:flex;align-items:center;justify-content:center;margin-bottom:20px;color:#fff;font-size:20px;}
+  .ai-card h3{font-size:18px;margin-bottom:10px;}
+  .ai-card p{font-size:14.5px;color:var(--text-dim);}
+
+  .feature-row{display:grid;grid-template-columns:1fr 1fr;gap:70px;align-items:center;margin-bottom:150px;}
+  .feature-row:last-child{margin-bottom:0;}
+  .feature-row.reverse .feature-copy{order:2;}
+  .feature-row.reverse .feature-visual{order:1;}
+  .feature-tag{display:inline-flex;align-items:center;gap:8px;font-size:13px;font-weight:600;padding:7px 14px;border-radius:100px;margin-bottom:20px;}
+  .feature-copy h3{font-size:clamp(24px,3vw,32px);margin-bottom:18px;line-height:1.15;}
+  .feature-copy p{font-size:16.5px;color:var(--text-dim);margin-bottom:22px;}
+  .feature-list{display:flex;flex-direction:column;gap:12px;}
+  .feature-list li{display:flex;gap:10px;align-items:flex-start;font-size:14.5px;color:var(--text-dim);list-style:none;}
+  .feature-list .ic{color:var(--ai-green);flex-shrink:0;margin-top:2px;}
+  .feature-visual{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:26px;box-shadow:0 30px 70px rgba(0,0,0,0.4);}
+  .mini-chart{display:flex;align-items:flex-end;gap:8px;height:110px;margin-bottom:18px;}
+  .mini-chart div{flex:1;border-radius:6px 6px 2px 2px;}
+  .mini-row{display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border);font-size:13px;color:var(--text-dim);}
+  .mini-row:last-child{border-bottom:none;}
+  .mini-row strong{color:var(--text);font-family:'JetBrains Mono',monospace;}
+
+  .compare-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px;}
+  .compare-card{border-radius:var(--radius-lg);padding:40px;border:1px solid var(--border);}
+  .compare-without{background:rgba(255,255,255,0.02);}
+  .compare-with{background:linear-gradient(160deg, rgba(139,92,246,0.1), rgba(34,211,238,0.04));border-color:rgba(139,92,246,0.35);position:relative;}
+  .compare-with::before{
+    content:"RECOMENDADO";position:absolute;top:-12px;left:40px;
+    background:var(--gradient-ai);color:#fff;font-size:11px;font-weight:700;
+    padding:5px 12px;border-radius:100px;letter-spacing:0.05em;
+  }
+  .compare-card h3{font-size:20px;margin-bottom:26px;}
+  .compare-list{display:flex;flex-direction:column;gap:16px;}
+  .compare-list li{display:flex;gap:12px;align-items:flex-start;font-size:15px;list-style:none;}
+  .compare-without .compare-list .ic{color:var(--coral);flex-shrink:0;margin-top:2px;}
+  .compare-without .compare-list li{color:var(--text-dim);}
+  .compare-with .compare-list .ic{color:var(--ai-green);flex-shrink:0;margin-top:2px;}
+  .compare-with .compare-list li{color:var(--text);}
+
+  .timeline{display:grid;grid-template-columns:repeat(3,1fr);gap:22px;position:relative;}
+  .timeline::before{content:"";position:absolute;top:26px;left:16%;right:16%;height:1px;background:linear-gradient(90deg, var(--violet), var(--cyan));opacity:0.4;}
+  .timeline-step{text-align:center;position:relative;}
+  .timeline-num{
+    width:52px;height:52px;border-radius:50%;background:var(--surface-solid);border:1px solid var(--border-strong);
+    display:flex;align-items:center;justify-content:center;margin:0 auto 20px;
+    font-family:'JetBrains Mono',monospace;font-weight:600;color:var(--text-dim);position:relative;z-index:1;
+  }
+  .timeline-step.active .timeline-num{background:var(--gradient-ai);color:#fff;border-color:transparent;box-shadow:0 0 24px rgba(52,211,153,0.4);}
+  .timeline-step h4{font-size:17px;margin-bottom:8px;}
+  .timeline-step p{font-size:14px;color:var(--text-dim);max-width:260px;margin:0 auto;}
+
+  .module-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;}
+  .module-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-md);padding:30px;display:flex;flex-direction:column;gap:16px;transition:border-color .2s ease, transform .2s ease;}
+  .module-card:hover{transform:translateY(-4px);border-color:var(--card-accent);}
+  .module-icon{width:42px;height:42px;border-radius:11px;background:var(--card-accent);display:flex;align-items:center;justify-content:center;color:#fff;}
+  .module-card h3{font-size:18px;}
+  .module-card p{color:var(--text-dim);font-size:14.5px;flex:1;}
+  .module-link{font-size:13.5px;font-weight:600;color:var(--card-accent);display:inline-flex;align-items:center;gap:6px;}
+
+  .result-note{margin-top:24px;text-align:center;font-size:12.5px;color:var(--text-faint);}
+
+  .faq-list{max-width:780px;margin:0 auto;}
+  .faq-item{border-bottom:1px solid var(--border);}
+  .faq-q{width:100%;text-align:left;background:none;border:none;color:var(--text);font-family:'Space Grotesk',sans-serif;font-size:17px;font-weight:600;padding:24px 0;display:flex;justify-content:space-between;align-items:center;cursor:pointer;gap:20px;}
+  .faq-q .ic{color:var(--text-faint);transition:transform .2s ease;flex-shrink:0;}
+  .faq-item.open .faq-q .ic{transform:rotate(45deg);color:var(--cyan);}
+  .faq-a{max-height:0;overflow:hidden;transition:max-height .3s ease;color:var(--text-dim);font-size:15.5px;}
+  .faq-item.open .faq-a{max-height:220px;padding-bottom:24px;}
+
+  .final-cta-wrap{position:relative;overflow:hidden;border-radius:32px;padding:110px 40px;text-align:center;border:1px solid var(--border-strong);}
+  .final-cta-wrap::before{
+    content:"";position:absolute;inset:0;
+    background:radial-gradient(circle at 30% 20%, rgba(139,92,246,0.35), transparent 60%),
+               radial-gradient(circle at 75% 80%, rgba(34,211,238,0.25), transparent 55%);
+    z-index:0;
+  }
+  .final-cta-inner{position:relative;z-index:1;}
+  .final-cta-inner h2{font-size:clamp(32px, 5vw, 56px);margin-bottom:20px;}
+  .final-cta-inner p{font-size:18px;color:var(--text-dim);margin-bottom:40px;max-width:560px;margin-left:auto;margin-right:auto;}
+  .final-cta-btns{display:flex;gap:16px;justify-content:center;flex-wrap:wrap;}
+
+  footer{border-top:1px solid var(--border);padding:56px 0 36px;}
+  .footer-row{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:20px;}
+  .footer-links{display:flex;gap:26px;font-size:13.5px;color:var(--text-faint);flex-wrap:wrap;}
+  .footer-links a:hover{color:var(--text-dim);}
+  .footer-bottom{margin-top:36px;padding-top:26px;border-top:1px solid var(--border);font-size:12.5px;color:var(--text-faint);display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px;}
+
+  @media (max-width:960px){
+    .nav-links{display:none;}
+    section{padding:90px 0;}
+    .ai-grid,.module-grid,.value-grid{grid-template-columns:repeat(2,1fr);}
+    .feature-row{grid-template-columns:1fr;gap:36px;margin-bottom:90px;}
+    .feature-row.reverse .feature-copy,.feature-row.reverse .feature-visual{order:initial;}
+    .compare-grid,.timeline{grid-template-columns:1fr;}
+    .timeline::before{display:none;}
+  }
+  @media (max-width:600px){
+    .ai-grid,.module-grid,.value-grid{grid-template-columns:1fr;}
+    .hero-ctas{flex-direction:column;align-items:stretch;}
+    .trust-row{gap:26px;}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <nav>
+      <a href="/" class="brand-lockup">
+        <span class="brand-orb"></span>
+        <span>Growth Intelligence<br><small>by Docta Nexus</small></span>
+      </a>
+      <div class="nav-links">
+        <div class="has-dropdown" tabindex="0">
+          <a href="#soluciones">Soluciones ▾</a>
+          <div class="dropdown">
+            <a href="/soluciones/meta-ads"><span class="sw" style="background:var(--blue)"></span>Meta Ads</a>
+            <a href="/soluciones/google-ads"><span class="sw" style="background:var(--amber)"></span>Google Ads</a>
+            <a href="/soluciones/analytics"><span class="sw" style="background:var(--turquoise)"></span>Analytics</a>
+            <a href="/soluciones/ecommerce"><span class="sw" style="background:var(--coral)"></span>eCommerce</a>
+            <a href="/soluciones/analisis-ia"><span class="sw" style="background:var(--violet)"></span>Análisis con IA</a>
+            <a href="/soluciones/creatividades"><span class="sw" style="background:var(--pink)"></span>Creatividades</a>
+          </div>
+        </div>
+        <a href="#producto">Producto</a>
+        <a href="#comparacion">Por qué IA</a>
+        <a href="#resultados">Resultados</a>
+        <a href="#faq">FAQ</a>
+      </div>
+      <a href="/login" class="btn btn-login">Login →</a>
+    </nav>
+  </div>
+</header>
+
+<section class="hero">
+  <div class="hero-glow"><span class="glow-1"></span><span class="glow-2"></span><span class="glow-3"></span></div>
+  <div class="wrap hero-inner">
+    <span class="eyebrow"><span class="pulse-dot"></span> AI Growth Operating System</span>
+    <h1>La plataforma de IA que encuentra <span class="gradient-text">oportunidades de crecimiento</span> antes que tu competencia.</h1>
+    <p class="lead">Analiza automáticamente Google Ads, Meta Ads, GA4 y tu eCommerce para detectar pérdidas, oportunidades y acciones concretas que aumentan la rentabilidad.</p>
+    <div class="hero-ctas">
+      <a href="#contacto" class="btn btn-primary btn-lg">Quiero probarlo</a>
+      <a href="#producto" class="btn btn-ghost btn-lg">Ver cómo funciona</a>
+    </div>
+
+    <div class="dash-mock reveal">
+      <div class="float-card float-1">
+        <div class="float-icon" style="background:var(--coral)"><i data-lucide="trending-down"></i></div>
+        <div><strong class="mono">CPA +18%</strong><br><span style="color:var(--text-faint)">Shopping · esta semana</span></div>
+      </div>
+      <div class="float-card float-2">
+        <div class="float-icon" style="background:var(--gradient-ai)"><i data-lucide="sparkles"></i></div>
+        <div><strong>Oportunidad detectada</strong><br><span style="color:var(--text-faint)">por AI Opportunity Detector</span></div>
+      </div>
+
+      <div class="dash-topbar">
+        <div class="dash-dots"><span></span><span></span><span></span></div>
+        <span class="dash-title">analytics.doctanexus.com · en vivo</span>
+      </div>
+
+      <div class="alert-card">
+        <div class="alert-head">
+          <span class="alert-badge"><i data-lucide="alert-triangle"></i> Oportunidad detectada</span>
+          <span class="alert-roas">ROAS <strong>+24%</strong></span>
+        </div>
+
+        <div class="alert-arrow"><i data-lucide="arrow-down"></i></div>
+
+        <div class="alert-reco">
+          <div class="ai-badge"><i data-lucide="brain-circuit"></i></div>
+          <div>
+            <span class="alert-reco-label">Recomendación IA</span>
+            <p>Mover <strong>$150.000</strong> de <strong>Meta</strong> a <strong>Google Shopping</strong></p>
+          </div>
+        </div>
+
+        <div class="alert-impact">
+          <span class="alert-impact-label">Impacto estimado</span>
+          <span class="alert-impact-value">+$2.300.000</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="trust">
+  <div class="wrap">
+    <p class="trust-label">Conecta en minutos</p>
+    <div class="trust-row">
+      <div class="trust-logo"><svg class="brand-svg" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2045c0-.6381-.0573-1.2518-.1636-1.8409H9v3.4814h4.8436c-.2086 1.125-.8427 2.0782-1.7959 2.7164v2.2581h2.9087c1.7018-1.5668 2.6836-3.8741 2.6836-6.615z"/><path fill="#34A853" d="M9 18c2.43 0 4.4673-.8059 5.9564-2.1805l-2.9087-2.2581c-.8059.54-1.8368.8591-3.0477.8591-2.3441 0-4.3282-1.5831-5.0359-3.7104H.9573v2.3318C2.4382 15.9832 5.4818 18 9 18z"/><path fill="#FBBC05" d="M3.9641 10.71c-.18-.54-.2823-1.1168-.2823-1.71s.1023-1.17.2823-1.71V4.9582H.9573C.3477 6.1732 0 7.5477 0 9s.3477 2.8268.9573 4.0418L3.9641 10.71z"/><path fill="#EA4335" d="M9 3.5795c1.3214 0 2.5077.4541 3.4405 1.346l2.5813-2.5814C13.4632.8918 11.4259 0 9 0 5.4818 0 2.4382 2.0168.9573 4.9582L3.9641 7.29C4.6718 5.1627 6.6559 3.5795 9 3.5795z"/></svg> Google Ads</div>
+      <div class="trust-logo"><svg class="brand-svg" viewBox="0 0 24 24"><path fill="#1877F2" d="M24 12.073c0-6.627-5.373-12-12-12S0 5.446 0 12.073c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg> Meta Ads</div>
+      <div class="trust-logo"><svg class="brand-svg" viewBox="0 0 24 24"><rect x="3" y="13" width="5" height="8" rx="1" fill="#F9AB00"/><rect x="9.5" y="8" width="5" height="13" rx="1" fill="#E37400"/><rect x="16" y="3" width="5" height="18" rx="1" fill="#F9AB00"/></svg> GA4</div>
+      <div class="trust-logo"><svg class="brand-svg" viewBox="0 0 24 24"><rect width="24" height="24" rx="5" fill="#95BF47"/><path fill="#fff" d="M12.5 6c-2.2 0-3.8 1.4-3.8 3.3 0 1.6 1.1 2.4 2.4 2.9l.9.4c.9.4 1.3.7 1.3 1.3 0 .6-.5 1-1.4 1-1 0-1.9-.5-2.5-1.1l-1.1 1.6c.8.9 2.1 1.5 3.5 1.5 2.3 0 4-1.4 4-3.4 0-1.6-1-2.5-2.5-3.1l-.8-.3c-.8-.3-1.3-.6-1.3-1.2 0-.5.5-.9 1.2-.9.8 0 1.5.4 2 .9l1.1-1.5C14.7 6.5 13.7 6 12.5 6z"/></svg> Shopify</div>
+      <div class="trust-logo"><svg class="brand-svg" viewBox="0 0 24 24"><rect width="24" height="24" rx="5" fill="#7F54B3"/><path fill="#fff" d="M5 9.5c0-.6.5-1 1-1s1 .3 1.1.9l1 5.2 1.3-4.2c.2-.6.5-.9 1-.9h.1c.5 0 .8.3 1 .9l1.3 4.2 1-5.2c.1-.6.6-.9 1.1-.9.6 0 1 .5 1 1 0 .1 0 .2 0 .3l-1.7 6.8c-.2.7-.6 1-1.2 1h-.2c-.6 0-1-.4-1.1-1l-1.2-3.8-1.2 3.8c-.2.6-.6 1-1.1 1h-.2c-.6 0-1-.3-1.2-1L5.1 9.8c0-.1 0-.2-.1-.3z"/></svg> WooCommerce</div>
+      <div class="trust-logo"><svg class="brand-svg" viewBox="0 0 24 24"><rect width="24" height="24" rx="12" fill="#FFE600"/><path fill="#2D3277" d="M6 13c0-3.3 2.7-6 6-6s6 2.7 6 6c0 .3 0 .6-.1.9-.2-.1-.4-.1-.6-.1-1 0-1.8.6-2.1 1.5-.3-.6-.9-1-1.6-1s-1.3.4-1.6 1c-.3-.9-1.1-1.5-2.1-1.5-.2 0-.4 0-.6.1C6 13.6 6 13.3 6 13z"/></svg> Mercado Libre</div>
+      <div class="trust-logo"><svg class="brand-svg" viewBox="0 0 24 24"><rect width="24" height="24" rx="5" fill="#000"/><path fill="#25F4EE" d="M14.5 3.5c.6 1.7 1.9 3 3.6 3.4v2.4c-1.3-.1-2.5-.5-3.6-1.2v6.1c0 2.9-2.3 5.2-5.2 5.2S4.1 17.1 4.1 14.2c0-2.7 2-4.9 4.6-5.2v2.5c-1.2.3-2.1 1.4-2.1 2.7 0 1.5 1.3 2.8 2.8 2.8s2.8-1.3 2.8-2.8V3.5h2.3z"/><path fill="#FE2C55" opacity=".55" d="M14.1 3.5c.6 1.7 1.9 3 3.6 3.4v2c-1.3-.1-2.5-.5-3.6-1.2v-4.2z"/></svg> TikTok Ads</div>
+    </div>
+  </div>
+</div>
+
+<section id="conversacion">
+  <div class="wrap">
+    <div class="section-head reveal">
+      <span class="eyebrow">No es un dashboard. Es un analista que te habla</span>
+      <h2>Así te avisa Growth Intelligence</h2>
+    </div>
+
+    <div class="chat-card reveal">
+      <div class="chat-avatar"><i data-lucide="brain-circuit"></i></div>
+      <div class="chat-bubble">
+        <p class="chat-line">Hola <span class="chat-name">equipo</span>.</p>
+        <p class="chat-line">Analicé tus campañas.</p>
+        <p class="chat-line">Encontré <strong>12 oportunidades</strong>.</p>
+        <p class="chat-line chat-em">La más importante:</p>
+        <p class="chat-line chat-highlight">Google Shopping está perdiendo un <strong>18% de conversiones</strong>.</p>
+        <p class="chat-line chat-em">Probablemente por:</p>
+        <ul class="chat-list">
+          <li>Feed incompleto</li>
+          <li>Productos sin stock</li>
+          <li>Títulos poco optimizados</li>
+        </ul>
+        <p class="chat-line chat-question">¿Querés que te muestre la solución?</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="producto">
+  <div class="wrap">
+    <div class="section-head reveal">
+      <span class="eyebrow">El equipo que nunca duerme</span>
+      <h2>Todo lo que la IA hace por vos</h2>
+      <p>No es un módulo más. Es el criterio con el que se lee cada número de la plataforma.</p>
+    </div>
+
+    <div class="ai-grid">
+      <div class="ai-card reveal">
+        <div class="ai-icon" style="background:var(--violet)">🤖</div>
+        <h3>AI Growth Analyst</h3>
+        <p>Analiza campañas.</p>
+      </div>
+      <div class="ai-card reveal">
+        <div class="ai-icon" style="background:var(--blue)">🤖</div>
+        <h3>Budget Optimizer</h3>
+        <p>Detecta presupuesto desperdiciado.</p>
+      </div>
+      <div class="ai-card reveal">
+        <div class="ai-icon" style="background:var(--turquoise)">🤖</div>
+        <h3>Funnel Intelligence</h3>
+        <p>Encuentra dónde perdés ventas.</p>
+      </div>
+      <div class="ai-card reveal">
+        <div class="ai-icon" style="background:var(--pink)">🤖</div>
+        <h3>Creative Performance</h3>
+        <p>Descubre qué anuncios están agotados.</p>
+      </div>
+      <div class="ai-card reveal">
+        <div class="ai-icon" style="background:var(--ai-green)">🤖</div>
+        <h3>Executive Reports</h3>
+        <p>Genera reportes para clientes automáticamente.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="ejemplo">
+  <div class="wrap">
+    <div class="section-head reveal">
+      <span class="eyebrow">No mostramos interfaces. Mostramos decisiones</span>
+      <h2>Así se ve un lunes con Growth Intelligence</h2>
+    </div>
+
+    <div class="decision-card reveal">
+      <div class="decision-row">
+        <span class="decision-label">Growth Intelligence</span>
+      </div>
+      <div class="decision-step">
+        <span class="decision-tag">Hoy encontramos</span>
+        <span class="decision-value">18 oportunidades</span>
+      </div>
+      <div class="decision-arrow"><i data-lucide="arrow-down"></i></div>
+      <div class="decision-step">
+        <span class="decision-tag">Podés ahorrar</span>
+        <span class="decision-value mono">$482.000</span>
+      </div>
+      <div class="decision-arrow"><i data-lucide="arrow-down"></i></div>
+      <div class="decision-step highlight">
+        <span class="decision-tag">Impacto estimado</span>
+        <span class="decision-value">+14% ROAS</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="feature-row reveal">
+      <div class="feature-copy">
+        <span class="feature-tag" style="background:rgba(59,130,246,0.15);color:var(--blue)">Meta Ads + Google Ads</span>
+        <h3>Los datos, siempre en vivo. Nunca lo que quedó guardado ayer.</h3>
+        <p>Cada período que elegís (Ayer, 7 días, 14 días, Mes, Semana) se resuelve consultando directamente la API — no un caché ni un promedio armado de antemano.</p>
+        <ul class="feature-list">
+          <li><i data-lucide="check-circle-2" class="ic"></i> Mismo period-bar en ambos canales, sin traducir números entre planillas</li>
+          <li><i data-lucide="check-circle-2" class="ic"></i> ROAS calculado automáticamente por canal</li>
+          <li><i data-lucide="check-circle-2" class="ic"></i> Diagnóstico contra tus propios objetivos, no contra un benchmark genérico</li>
+        </ul>
+      </div>
+      <div class="feature-visual">
+        <div class="mini-chart">
+          <div style="height:40%;background:var(--blue)"></div>
+          <div style="height:65%;background:var(--blue)"></div>
+          <div style="height:50%;background:var(--amber)"></div>
+          <div style="height:80%;background:var(--amber)"></div>
+          <div style="height:60%;background:var(--blue)"></div>
+          <div style="height:90%;background:var(--amber)"></div>
+        </div>
+        <div class="mini-row"><span>Inversión total</span><strong>$1.2M</strong></div>
+        <div class="mini-row"><span>ROAS combinado</span><strong>4.2x</strong></div>
+        <div class="mini-row"><span>Estado</span><strong style="color:var(--ai-green)">En vivo</strong></div>
+      </div>
+    </div>
+
+    <div class="feature-row reverse reveal">
+      <div class="feature-copy">
+        <span class="feature-tag" style="background:rgba(45,212,191,0.15);color:var(--turquoise)">Analytics (GA4)</span>
+        <h3>El funnel de eCommerce, sin adivinar dónde se cae.</h3>
+        <p>Desde la vista del producto hasta la compra — con usuarios (no solo eventos) y la caída exacta entre cada paso.</p>
+        <ul class="feature-list">
+          <li><i data-lucide="check-circle-2" class="ic"></i> 6 pasos del funnel, con % de conversión propio y acumulado</li>
+          <li><i data-lucide="check-circle-2" class="ic"></i> Usuarios perdidos por paso, no solo eventos</li>
+          <li><i data-lucide="check-circle-2" class="ic"></i> Canales de adquisición con tiempo de interacción y rebote reales</li>
+        </ul>
+      </div>
+      <div class="feature-visual">
+        <div class="mini-row"><span>Ver producto</span><strong>18.400</strong></div>
+        <div class="mini-row"><span>Agregar al carrito</span><strong>7.120</strong></div>
+        <div class="mini-row"><span>Iniciar checkout</span><strong>3.980</strong></div>
+        <div class="mini-row"><span>Compra</span><strong style="color:var(--ai-green)">2.310</strong></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="que-analiza">
+  <div class="wrap">
+    <div class="section-head reveal">
+      <span class="eyebrow">De la fuente a la acción</span>
+      <h2>¿Qué analiza Growth Intelligence?</h2>
+      <p>Todo lo que pasa por tus canales, condensado en una sola cadena de decisiones.</p>
+    </div>
+
+    <div class="qa-flow reveal">
+      <div class="qa-node" style="--n:var(--blue)"><svg class="brand-svg" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2045c0-.6381-.0573-1.2518-.1636-1.8409H9v3.4814h4.8436c-.2086 1.125-.8427 2.0782-1.7959 2.7164v2.2581h2.9087c1.7018-1.5668 2.6836-3.8741 2.6836-6.615z"/><path fill="#34A853" d="M9 18c2.43 0 4.4673-.8059 5.9564-2.1805l-2.9087-2.2581c-.8059.54-1.8368.8591-3.0477.8591-2.3441 0-4.3282-1.5831-5.0359-3.7104H.9573v2.3318C2.4382 15.9832 5.4818 18 9 18z"/><path fill="#FBBC05" d="M3.9641 10.71c-.18-.54-.2823-1.1168-.2823-1.71s.1023-1.17.2823-1.71V4.9582H.9573C.3477 6.1732 0 7.5477 0 9s.3477 2.8268.9573 4.0418L3.9641 10.71z"/><path fill="#EA4335" d="M9 3.5795c1.3214 0 2.5077.4541 3.4405 1.346l2.5813-2.5814C13.4632.8918 11.4259 0 9 0 5.4818 0 2.4382 2.0168.9573 4.9582L3.9641 7.29C4.6718 5.1627 6.6559 3.5795 9 3.5795z"/></svg> Google Ads</div>
+      <div class="qa-arrow"><i data-lucide="arrow-down"></i></div>
+      <div class="qa-node" style="--n:var(--blue)"><svg class="brand-svg" viewBox="0 0 24 24"><path fill="#1877F2" d="M24 12.073c0-6.627-5.373-12-12-12S0 5.446 0 12.073c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg> Meta Ads</div>
+      <div class="qa-arrow"><i data-lucide="arrow-down"></i></div>
+      <div class="qa-node" style="--n:var(--turquoise)"><i data-lucide="bar-chart-3"></i> Analytics</div>
+      <div class="qa-arrow"><i data-lucide="arrow-down"></i></div>
+      <div class="qa-node" style="--n:var(--text-faint)"><i data-lucide="users"></i> CRM</div>
+      <div class="qa-arrow"><i data-lucide="arrow-down"></i></div>
+      <div class="qa-node" style="--n:var(--coral)"><i data-lucide="shopping-cart"></i> eCommerce</div>
+      <div class="qa-arrow"><i data-lucide="arrow-down"></i></div>
+      <div class="qa-node qa-core"><i data-lucide="brain-circuit"></i> IA</div>
+      <div class="qa-arrow"><i data-lucide="arrow-down"></i></div>
+      <div class="qa-node" style="--n:var(--cyan)"><i data-lucide="lightbulb"></i> Insights</div>
+      <div class="qa-arrow"><i data-lucide="arrow-down"></i></div>
+      <div class="qa-node" style="--n:var(--ai-green)"><i data-lucide="target"></i> Acciones</div>
+      <div class="qa-arrow"><i data-lucide="arrow-down"></i></div>
+      <div class="qa-node qa-result"><i data-lucide="trophy"></i> Resultados</div>
+    </div>
+  </div>
+</section>
+
+<section id="comparacion">
+  <div class="wrap">
+    <div class="section-head reveal">
+      <span class="eyebrow">La diferencia real</span>
+      <h2>Un dashboard te muestra números. Growth Intelligence te dice qué hacer con ellos.</h2>
+    </div>
+    <div class="compare-grid">
+      <div class="compare-card compare-without reveal">
+        <h3>Sin Growth Intelligence</h3>
+        <ul class="compare-list">
+          <li><i data-lucide="x" class="ic"></i> Mirás dashboards.</li>
+          <li><i data-lucide="x" class="ic"></i> Exportás Excel.</li>
+          <li><i data-lucide="x" class="ic"></i> Buscás errores.</li>
+          <li><i data-lucide="x" class="ic"></i> Perdés horas.</li>
+        </ul>
+      </div>
+      <div class="compare-card compare-with reveal">
+        <h3>Con Growth Intelligence</h3>
+        <ul class="compare-list">
+          <li><i data-lucide="check" class="ic"></i> La IA analiza todo.</li>
+          <li><i data-lucide="check" class="ic"></i> Detecta oportunidades.</li>
+          <li><i data-lucide="check" class="ic"></i> Prioriza acciones.</li>
+          <li><i data-lucide="check" class="ic"></i> Explica por qué.</li>
+          <li><i data-lucide="check" class="ic"></i> Calcula impacto.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="section-head reveal">
+      <span class="eyebrow">Cómo funciona</span>
+      <h2>Tan simple como suena</h2>
+    </div>
+    <div class="timeline">
+      <div class="timeline-step active reveal">
+        <div class="timeline-num"><i data-lucide="plug"></i></div>
+        <h4>Conecta</h4>
+        <p>Sumás tus cuentas de Meta Ads, Google Ads y Analytics en minutos.</p>
+      </div>
+      <div class="timeline-step active reveal">
+        <div class="timeline-num"><i data-lucide="brain-circuit"></i></div>
+        <h4>La IA aprende</h4>
+        <p>Entiende tus objetivos y empieza a leer tus datos todos los días.</p>
+      </div>
+      <div class="timeline-step active reveal">
+        <div class="timeline-num"><i data-lucide="rocket"></i></div>
+        <h4>Crecé</h4>
+        <p>Recibís qué hacer, no solo qué pasó.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="objetivos">
+  <div class="wrap">
+    <div class="section-head reveal">
+      <span class="eyebrow">Empezá por lo que necesitás</span>
+      <h2>¿Cuál es tu objetivo hoy?</h2>
+    </div>
+    <div class="goal-grid">
+      <a href="#contacto" class="goal-chip reveal"><i data-lucide="trending-up"></i> Quiero vender más</a>
+      <a href="#contacto" class="goal-chip reveal"><i data-lucide="trending-down"></i> Quiero bajar CPA</a>
+      <a href="#contacto" class="goal-chip reveal"><i data-lucide="rocket"></i> Quiero escalar Google Ads</a>
+      <a href="#contacto" class="goal-chip reveal"><i data-lucide="target"></i> Quiero mejorar ROAS</a>
+      <a href="#contacto" class="goal-chip reveal"><i data-lucide="search-x"></i> Quiero detectar errores</a>
+      <a href="#contacto" class="goal-chip reveal"><i data-lucide="file-text"></i> Quiero automatizar reportes</a>
+    </div>
+  </div>
+</section>
+
+<section id="soluciones">
+  <div class="wrap">
+    <div class="section-head reveal">
+      <span class="eyebrow">Casos de uso</span>
+      <h2>Una solución por fuente. Un mismo criterio para todas.</h2>
+    </div>
+    <div class="module-grid">
+      <a href="/soluciones/meta-ads" class="module-card reveal" style="--card-accent:var(--blue)">
+        <div class="module-icon brand-bg"><svg class="brand-svg" viewBox="0 0 24 24"><path fill="#1877F2" d="M24 12.073c0-6.627-5.373-12-12-12S0 5.446 0 12.073c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg></div>
+        <h3>Meta Ads</h3>
+        <p>Métricas en vivo directo desde Graph API, con el period-bar que ya es "gold standard" del sistema.</p>
+        <span class="module-link">Ver solución <i data-lucide="arrow-right"></i></span>
+      </a>
+      <a href="/soluciones/google-ads" class="module-card reveal" style="--card-accent:var(--amber)">
+        <div class="module-icon brand-bg"><svg class="brand-svg" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2045c0-.6381-.0573-1.2518-.1636-1.8409H9v3.4814h4.8436c-.2086 1.125-.8427 2.0782-1.7959 2.7164v2.2581h2.9087c1.7018-1.5668 2.6836-3.8741 2.6836-6.615z"/><path fill="#34A853" d="M9 18c2.43 0 4.4673-.8059 5.9564-2.1805l-2.9087-2.2581c-.8059.54-1.8368.8591-3.0477.8591-2.3441 0-4.3282-1.5831-5.0359-3.7104H.9573v2.3318C2.4382 15.9832 5.4818 18 9 18z"/><path fill="#FBBC05" d="M3.9641 10.71c-.18-.54-.2823-1.1168-.2823-1.71s.1023-1.17.2823-1.71V4.9582H.9573C.3477 6.1732 0 7.5477 0 9s.3477 2.8268.9573 4.0418L3.9641 10.71z"/><path fill="#EA4335" d="M9 3.5795c1.3214 0 2.5077.4541 3.4405 1.346l2.5813-2.5814C13.4632.8918 11.4259 0 9 0 5.4818 0 2.4382 2.0168.9573 4.9582L3.9641 7.29C4.6718 5.1627 6.6559 3.5795 9 3.5795z"/></svg></div>
+        <h3>Google Ads</h3>
+        <p>Campañas, Shopping y Performance Max, con ROAS calculado y mismo criterio que Meta.</p>
+        <span class="module-link">Ver solución <i data-lucide="arrow-right"></i></span>
+      </a>
+      <a href="/soluciones/analytics" class="module-card reveal" style="--card-accent:var(--turquoise)">
+        <div class="module-icon"><i data-lucide="bar-chart-3"></i></div>
+        <h3>Analytics (GA4)</h3>
+        <p>Adquisición por canal y funnel de eCommerce completo, con usuarios reales por paso.</p>
+        <span class="module-link">Ver solución <i data-lucide="arrow-right"></i></span>
+      </a>
+      <a href="/soluciones/ecommerce" class="module-card reveal" style="--card-accent:var(--coral)">
+        <div class="module-icon"><i data-lucide="shopping-cart"></i></div>
+        <h3>eCommerce</h3>
+        <p>Facturación, ticket promedio y clientes nuevos vs. recurrentes, con diagnóstico de IA propio.</p>
+        <span class="module-link">Ver solución <i data-lucide="arrow-right"></i></span>
+      </a>
+      <a href="/soluciones/analisis-ia" class="module-card reveal" style="--card-accent:var(--violet)">
+        <div class="module-icon"><i data-lucide="brain-circuit"></i></div>
+        <h3>Análisis con IA</h3>
+        <p>Un paso separado y a demanda: Claude analiza, GPT sintetiza. Nunca corre sin que lo pidas.</p>
+        <span class="module-link">Ver solución <i data-lucide="arrow-right"></i></span>
+      </a>
+      <a href="/soluciones/creatividades" class="module-card reveal" style="--card-accent:var(--pink)">
+        <div class="module-icon"><i data-lucide="sparkles"></i></div>
+        <h3>Creatividades</h3>
+        <p>Agente Andrómeda: diagnóstico experto de piezas creativas, con el mismo criterio del sistema.</p>
+        <span class="module-link">Ver solución <i data-lucide="arrow-right"></i></span>
+      </a>
+    </div>
+  </div>
+</section>
+
+<section id="resultados">
+  <div class="wrap">
+    <div class="section-head reveal">
+      <span class="eyebrow">No medimos clics. Medimos valor</span>
+      <h2>Lo que la IA te devuelve, en tus términos</h2>
+      <p>Nada de CTR o CPA sueltos. Cada análisis se traduce a lo que realmente importa.</p>
+    </div>
+    <div class="value-grid">
+      <div class="value-card reveal"><div class="value-icon" style="--v:var(--ai-green)"><i data-lucide="piggy-bank"></i></div><h3>Dinero recuperado</h3></div>
+      <div class="value-card reveal"><div class="value-icon" style="--v:var(--coral)"><i data-lucide="trending-down"></i></div><h3>Presupuesto desperdiciado</h3></div>
+      <div class="value-card reveal"><div class="value-icon" style="--v:var(--amber)"><i data-lucide="search-x"></i></div><h3>Problemas detectados</h3></div>
+      <div class="value-card reveal"><div class="value-icon" style="--v:var(--turquoise)"><i data-lucide="clock"></i></div><h3>Horas ahorradas</h3></div>
+      <div class="value-card reveal"><div class="value-icon" style="--v:var(--violet)"><i data-lucide="bell-ring"></i></div><h3>Alertas IA</h3></div>
+      <div class="value-card reveal"><div class="value-icon" style="--v:var(--cyan)"><i data-lucide="list-checks"></i></div><h3>Acciones sugeridas</h3></div>
+    </div>
+    <p class="result-note">Cifras reales por cuenta, disponibles una vez conectado tu primer canal.</p>
+  </div>
+</section>
+
+<section id="impact-counter">
+  <div class="wrap">
+    <div class="section-head reveal">
+      <span class="eyebrow">En números</span>
+      <h2>Lo que la IA ya viene moviendo</h2>
+    </div>
+    <div class="counter-grid">
+      <div class="counter-card reveal">
+        <div class="counter-value" data-prefix="+$" data-target="428000">0</div>
+        <p>Presupuesto optimizado</p>
+      </div>
+      <div class="counter-card reveal">
+        <div class="counter-value" data-target="1342">0</div>
+        <p>Problemas detectados</p>
+      </div>
+      <div class="counter-card reveal">
+        <div class="counter-value" data-target="6942">0</div>
+        <p>Insights generados</p>
+      </div>
+      <div class="counter-card reveal">
+        <div class="counter-value" data-target="824">0</div>
+        <p>Horas ahorradas</p>
+      </div>
+      <div class="counter-card reveal">
+        <div class="counter-value" data-prefix="+" data-suffix="%" data-target="18">0</div>
+        <p>ROAS promedio</p>
+      </div>
+    </div>
+    <p class="result-note">Acumulado de todas las cuentas activas — a actualizar con datos reales antes de publicar.</p>
+  </div>
+</section>
+
+<section id="faq">
+  <div class="wrap">
+    <div class="section-head reveal">
+      <span class="eyebrow">Preguntas frecuentes</span>
+      <h2>Lo que solés preguntar antes de sumar una cuenta</h2>
+    </div>
+    <div class="faq-list">
+      <div class="faq-item reveal">
+        <button class="faq-q">¿Los datos son en vivo o guardados? <i data-lucide="plus" class="ic"></i></button>
+        <div class="faq-a"><p>Meta Ads, Google Ads y Analytics resuelven cada período consultando la API directamente. Igual guardamos un histórico diario, pero solo como registro de referencia.</p></div>
+      </div>
+      <div class="faq-item reveal">
+        <button class="faq-q">¿Cómo se agrega un cliente nuevo? <i data-lucide="plus" class="ic"></i></button>
+        <div class="faq-a"><p>Desde el panel de administración: se cargan las credenciales una sola vez, sin tocar código ni hacer un deploy.</p></div>
+      </div>
+      <div class="faq-item reveal">
+        <button class="faq-q">¿El análisis de IA se corre solo? <i data-lucide="plus" class="ic"></i></button>
+        <div class="faq-a"><p>No. Cada solapa tiene su propio botón de análisis — vos decidís cuándo correrlo y con qué filtro de período.</p></div>
+      </div>
+      <div class="faq-item reveal">
+        <button class="faq-q">¿Puedo comparar Meta y Google entre sí? <i data-lucide="plus" class="ic"></i></button>
+        <div class="faq-a"><p>Cada canal se mide contra su propia historia y sus propios objetivos — no armamos comparaciones de halo entre canales.</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="contacto">
+  <div class="wrap">
+    <div class="section-head reveal">
+      <span class="eyebrow">Hablemos</span>
+      <h2>Contanos qué querés lograr</h2>
+      <p>Completá el formulario o escribinos directo por WhatsApp — te respondemos nosotros, no un bot.</p>
+    </div>
+
+    <div class="contact-grid reveal">
+      <form class="contact-form" id="contactForm">
+        <div class="form-row">
+          <label>Nombre
+            <input type="text" name="nombre" required placeholder="Tu nombre">
+          </label>
+          <label>Empresa
+            <input type="text" name="empresa" placeholder="Nombre de tu empresa">
+          </label>
+        </div>
+        <label>Email
+          <input type="email" name="email" required placeholder="vos@empresa.com">
+        </label>
+        <label>Contanos qué necesitás
+          <textarea name="mensaje" rows="4" placeholder="Ej: quiero bajar mi CPA en Google Ads"></textarea>
+        </label>
+        <button type="submit" class="btn btn-primary btn-lg">Enviar</button>
+        <p class="form-status" id="formStatus"></p>
+      </form>
+
+      <a href="https://wa.me/5493516886262?text=Hola%2C%20quiero%20saber%20m%C3%A1s%20sobre%20Growth%20Intelligence" target="_blank" rel="noopener" class="whatsapp-card">
+        <div class="whatsapp-icon"><svg class="brand-svg" viewBox="0 0 24 24" fill="#fff"><path d="M12 0C5.373 0 0 5.373 0 12c0 2.11.552 4.09 1.518 5.81L0 24l6.35-1.484A11.938 11.938 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.75a9.72 9.72 0 01-4.949-1.357l-.355-.21-3.68.86.87-3.591-.232-.37A9.75 9.75 0 1121.75 12 9.762 9.762 0 0112 21.75z"/><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/></svg></div>
+        <div>
+          <h3>Preferís WhatsApp?</h3>
+          <p>Escribinos directo y te respondemos nosotros.</p>
+          <span class="whatsapp-link">Abrir chat <i data-lucide="arrow-right"></i></span>
+        </div>
+      </a>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="final-cta-wrap reveal">
+      <div class="final-cta-inner">
+        <h2>Dejá de mirar dashboards.<br>Empezá a tomar mejores decisiones.</h2>
+        <p>Growth Intelligence analiza tus datos, encuentra oportunidades y te dice exactamente qué hacer para crecer.</p>
+        <div class="final-cta-btns">
+          <a href="#contacto" class="btn btn-primary btn-lg">Probar gratis</a>
+          <a href="/login" class="btn btn-ghost btn-lg">Ya tengo cuenta →</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div class="footer-row">
+      <a href="/" class="brand-lockup">
+        <span class="brand-orb"></span>
+        <span>Growth Intelligence<br><small>by Docta Nexus</small></span>
+      </a>
+      <div class="footer-links">
+        <a href="/soluciones/meta-ads">Meta Ads</a>
+        <a href="/soluciones/google-ads">Google Ads</a>
+        <a href="/soluciones/analytics">Analytics</a>
+        <a href="/soluciones/ecommerce">eCommerce</a>
+        <a href="/soluciones/analisis-ia">Análisis IA</a>
+        <a href="/soluciones/creatividades">Creatividades</a>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <span>© 2026 Docta Nexus. Todos los derechos reservados.</span>
+      <a href="https://doctanexus.com" target="_blank" rel="noopener">doctanexus.com</a>
+    </div>
+  </div>
+</footer>
+
+<a href="https://wa.me/5493516886262?text=Hola%2C%20quiero%20saber%20m%C3%A1s%20sobre%20Growth%20Intelligence" target="_blank" rel="noopener" class="wa-float" aria-label="Escribinos por WhatsApp">
+  <svg class="brand-svg" viewBox="0 0 24 24" fill="#fff" style="width:28px;height:28px;"><path d="M12 0C5.373 0 0 5.373 0 12c0 2.11.552 4.09 1.518 5.81L0 24l6.35-1.484A11.938 11.938 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.75a9.72 9.72 0 01-4.949-1.357l-.355-.21-3.68.86.87-3.591-.232-.37A9.75 9.75 0 1121.75 12 9.762 9.762 0 0112 21.75z"/><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/></svg>
+</a>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function(){
+    if(window.lucide){ lucide.createIcons(); }
+
+    document.querySelectorAll('.faq-item').forEach(function(item){
+      item.querySelector('.faq-q').addEventListener('click', function(){
+        var isOpen = item.classList.contains('open');
+        document.querySelectorAll('.faq-item.open').forEach(function(el){ el.classList.remove('open'); });
+        if(!isOpen){ item.classList.add('open'); }
+      });
+    });
+
+    var revealEls = document.querySelectorAll('.reveal');
+    if('IntersectionObserver' in window){
+      var io = new IntersectionObserver(function(entries){
+        entries.forEach(function(entry){
+          if(entry.isIntersecting){
+            entry.target.classList.add('is-visible');
+            io.unobserve(entry.target);
+          }
+        });
+      },{threshold:0.15});
+      revealEls.forEach(function(el){ io.observe(el); });
+    } else {
+      revealEls.forEach(function(el){ el.classList.add('is-visible'); });
+    }
+
+    function animateCounter(el){
+      var target = parseInt(el.getAttribute('data-target'), 10) || 0;
+      var prefix = el.getAttribute('data-prefix') || '';
+      var suffix = el.getAttribute('data-suffix') || '';
+      var duration = 1400;
+      var start = null;
+      function step(ts){
+        if(!start) start = ts;
+        var progress = Math.min((ts - start) / duration, 1);
+        var eased = 1 - Math.pow(1 - progress, 3);
+        var value = Math.floor(eased * target);
+        el.textContent = prefix + value.toLocaleString('es-AR') + suffix;
+        if(progress < 1){ requestAnimationFrame(step); }
+        else { el.textContent = prefix + target.toLocaleString('es-AR') + suffix; }
+      }
+      requestAnimationFrame(step);
+    }
+
+    var counterEls = document.querySelectorAll('.counter-value');
+    if('IntersectionObserver' in window && counterEls.length){
+      var counterIO = new IntersectionObserver(function(entries){
+        entries.forEach(function(entry){
+          if(entry.isIntersecting){
+            animateCounter(entry.target);
+            counterIO.unobserve(entry.target);
+          }
+        });
+      },{threshold:0.4});
+      counterEls.forEach(function(el){ counterIO.observe(el); });
+    } else {
+      counterEls.forEach(function(el){
+        var target = parseInt(el.getAttribute('data-target'), 10) || 0;
+        el.textContent = (el.getAttribute('data-prefix')||'') + target.toLocaleString('es-AR') + (el.getAttribute('data-suffix')||'');
+      });
+    }
+
+    var contactForm = document.getElementById('contactForm');
+    var formStatus = document.getElementById('formStatus');
+    if(contactForm){
+      contactForm.addEventListener('submit', function(e){
+        e.preventDefault();
+        var data = Object.fromEntries(new FormData(contactForm).entries());
+        formStatus.textContent = 'Enviando...';
+        // NOTA PARA DEV: este endpoint todavía no existe en el backend.
+        // Crear POST /api/contact en server.js que reciba {nombre, empresa, email, mensaje}
+        // y lo mande por Resend al mail del equipo.
+        fetch('/api/contact', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify(data)
+        }).then(function(res){
+          if(res.ok){
+            formStatus.textContent = '¡Gracias! Te contactamos a la brevedad.';
+            contactForm.reset();
+          } else {
+            formStatus.textContent = 'Hubo un problema. Escribinos por WhatsApp mientras lo resolvemos.';
+          }
+        }).catch(function(){
+          formStatus.textContent = 'Hubo un problema. Escribinos por WhatsApp mientras lo resolvemos.';
+        });
+      });
+    }
+  });
+</script>
+
+</body>
+</html>
