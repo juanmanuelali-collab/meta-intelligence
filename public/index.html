@@ -1,0 +1,931 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Growth Intelligence Platform — Docta Nexus</title>
+<meta name="description" content="Meta Ads, Google Ads, Analytics y eCommerce, unificados en un solo tablero con análisis de IA. Datos en vivo, sin planillas.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0A0B10;
+    --bg-soft:#0E1016;
+    --surface:#14161D;
+    --surface-2:#1A1D26;
+    --border:#262A36;
+    --text:#F4F5F7;
+    --text-dim:#9CA3AF;
+    --text-faint:#5B6270;
+    --brand:#7C6AEF;
+    --brand-soft:rgba(124,106,239,0.14);
+    --meta:#4C8DFF;
+    --google:#F5A623;
+    --analytics:#2DD4BF;
+    --ecommerce:#FF6B5D;
+    --creative:#EC6BAE;
+    --radius:14px;
+  }
+
+  *{margin:0;padding:0;box-sizing:border-box;}
+
+  html{scroll-behavior:smooth;}
+
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:'Inter',sans-serif;
+    line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  h1,h2,h3{
+    font-family:'Space Grotesk',sans-serif;
+    letter-spacing:-0.02em;
+    font-weight:600;
+  }
+
+  .mono{
+    font-family:'JetBrains Mono',monospace;
+  }
+
+  a{color:inherit;text-decoration:none;}
+
+  img{max-width:100%;display:block;}
+
+  :focus-visible{
+    outline:2px solid var(--brand);
+    outline-offset:3px;
+  }
+
+  .wrap{
+    max-width:1180px;
+    margin:0 auto;
+    padding:0 28px;
+  }
+
+  /* ---------- NAV ---------- */
+  header{
+    position:sticky;
+    top:0;
+    z-index:50;
+    background:rgba(10,11,16,0.82);
+    backdrop-filter:blur(10px);
+    border-bottom:1px solid var(--border);
+  }
+
+  nav{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    height:72px;
+  }
+
+  .brand-lockup{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    font-family:'Space Grotesk',sans-serif;
+    font-weight:600;
+    font-size:17px;
+  }
+
+  .brand-lockup .dot{
+    width:9px;height:9px;border-radius:50%;
+    background:var(--brand);
+    box-shadow:0 0 12px var(--brand);
+  }
+
+  .brand-lockup small{
+    display:block;
+    font-family:'Inter',sans-serif;
+    font-weight:400;
+    font-size:11px;
+    color:var(--text-faint);
+    letter-spacing:0.04em;
+    text-transform:uppercase;
+  }
+
+  .nav-links{
+    display:flex;
+    align-items:center;
+    gap:32px;
+    font-size:14.5px;
+    color:var(--text-dim);
+  }
+
+  .nav-links a:hover{color:var(--text);}
+
+  .has-dropdown{position:relative;}
+
+  .dropdown{
+    position:absolute;
+    top:calc(100% + 14px);
+    left:50%;
+    transform:translateX(-50%);
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    padding:10px;
+    min-width:220px;
+    display:none;
+    box-shadow:0 20px 40px rgba(0,0,0,0.4);
+  }
+
+  .has-dropdown:hover .dropdown,
+  .has-dropdown:focus-within .dropdown{display:block;}
+
+  .dropdown a{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    padding:9px 12px;
+    border-radius:9px;
+    font-size:14px;
+    color:var(--text-dim);
+  }
+
+  .dropdown a:hover{background:var(--surface-2);color:var(--text);}
+
+  .dropdown .sw{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+
+  .btn{
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    padding:11px 20px;
+    border-radius:10px;
+    font-size:14.5px;
+    font-weight:600;
+    border:1px solid transparent;
+    cursor:pointer;
+    transition:transform .15s ease, opacity .15s ease;
+  }
+
+  .btn:hover{transform:translateY(-1px);}
+
+  .btn-primary{
+    background:var(--brand);
+    color:#fff;
+  }
+
+  .btn-primary:hover{opacity:.92;}
+
+  .btn-ghost{
+    background:transparent;
+    border-color:var(--border);
+    color:var(--text);
+  }
+
+  .btn-ghost:hover{background:var(--surface-2);}
+
+  .btn-login{
+    background:var(--surface-2);
+    border:1px solid var(--border);
+    color:var(--text);
+  }
+
+  /* ---------- HERO ---------- */
+  .hero{
+    position:relative;
+    padding:96px 0 60px;
+    overflow:hidden;
+  }
+
+  .hero::before{
+    content:"";
+    position:absolute;
+    top:-200px;left:50%;
+    transform:translateX(-50%);
+    width:900px;height:900px;
+    background:radial-gradient(circle, var(--brand-soft) 0%, transparent 65%);
+    pointer-events:none;
+  }
+
+  .hero-grid{
+    position:relative;
+    display:grid;
+    grid-template-columns:1.05fr 0.95fr;
+    gap:50px;
+    align-items:center;
+  }
+
+  .eyebrow{
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    font-size:13px;
+    color:var(--brand);
+    background:var(--brand-soft);
+    border:1px solid rgba(124,106,239,0.35);
+    padding:6px 12px;
+    border-radius:100px;
+    font-weight:600;
+    margin-bottom:22px;
+  }
+
+  .hero h1{
+    font-size:clamp(34px, 4.4vw, 54px);
+    line-height:1.06;
+    margin-bottom:22px;
+  }
+
+  .hero h1 .accent{color:var(--brand);}
+
+  .hero p.lead{
+    font-size:17.5px;
+    color:var(--text-dim);
+    max-width:480px;
+    margin-bottom:34px;
+  }
+
+  .hero-ctas{
+    display:flex;
+    gap:14px;
+    margin-bottom:38px;
+  }
+
+  .hero-meta{
+    display:flex;
+    gap:28px;
+    font-size:13.5px;
+    color:var(--text-faint);
+  }
+
+  .hero-meta strong{
+    color:var(--text);
+    font-family:'JetBrains Mono',monospace;
+    font-size:14px;
+  }
+
+  /* ---------- CONSTELLATION ---------- */
+  .constellation{
+    position:relative;
+    aspect-ratio:1/1;
+    max-width:480px;
+    margin:0 auto;
+  }
+
+  .constellation svg{width:100%;height:100%;}
+
+  .node-line{
+    stroke-width:1.4;
+    fill:none;
+    opacity:0.55;
+    stroke-dasharray:5 5;
+    animation:dash 26s linear infinite;
+  }
+
+  @keyframes dash{
+    to{stroke-dashoffset:-500;}
+  }
+
+  .node{
+    filter:drop-shadow(0 0 10px currentColor);
+  }
+
+  .node-pulse{
+    animation:pulse 2.6s ease-in-out infinite;
+    transform-origin:center;
+  }
+
+  @keyframes pulse{
+    0%,100%{opacity:1;}
+    50%{opacity:0.55;}
+  }
+
+  .node-label{
+    font-family:'JetBrains Mono',monospace;
+    font-size:10.5px;
+    fill:var(--text-dim);
+  }
+
+  .core-label{
+    font-family:'Space Grotesk',sans-serif;
+    font-size:12px;
+    font-weight:600;
+    fill:var(--text);
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    .node-line, .node-pulse{animation:none;}
+  }
+
+  /* ---------- STRIP ---------- */
+  .strip{
+    border-top:1px solid var(--border);
+    border-bottom:1px solid var(--border);
+    background:var(--bg-soft);
+    padding:26px 0;
+  }
+
+  .strip-row{
+    display:flex;
+    justify-content:space-between;
+    flex-wrap:wrap;
+    gap:20px;
+  }
+
+  .strip-item{
+    display:flex;
+    align-items:baseline;
+    gap:10px;
+    font-size:14px;
+    color:var(--text-dim);
+  }
+
+  .strip-item strong{
+    font-family:'JetBrains Mono',monospace;
+    color:var(--text);
+    font-size:20px;
+  }
+
+  /* ---------- SECTION SHARED ---------- */
+  section{padding:96px 0;}
+
+  .section-head{
+    max-width:600px;
+    margin-bottom:56px;
+  }
+
+  .section-head .eyebrow{margin-bottom:16px;}
+
+  .section-head h2{
+    font-size:clamp(26px, 3vw, 36px);
+    margin-bottom:14px;
+  }
+
+  .section-head p{
+    color:var(--text-dim);
+    font-size:16px;
+  }
+
+  /* ---------- MODULE GRID ---------- */
+  .module-grid{
+    display:grid;
+    grid-template-columns:repeat(3, 1fr);
+    gap:18px;
+  }
+
+  .module-card{
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    padding:26px;
+    display:flex;
+    flex-direction:column;
+    gap:14px;
+    transition:border-color .18s ease, transform .18s ease;
+  }
+
+  .module-card:hover{
+    transform:translateY(-3px);
+    border-color:var(--card-accent, var(--brand));
+  }
+
+  .module-swatch{
+    width:34px;height:34px;
+    border-radius:9px;
+    background:var(--card-accent);
+    display:flex;align-items:center;justify-content:center;
+    font-size:15px;
+  }
+
+  .module-card h3{font-size:17px;}
+
+  .module-card p{
+    color:var(--text-dim);
+    font-size:14px;
+    flex:1;
+  }
+
+  .module-link{
+    font-size:13.5px;
+    font-weight:600;
+    color:var(--card-accent);
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+  }
+
+  /* ---------- AI PIPELINE ---------- */
+  .pipeline{
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:20px;
+    padding:44px;
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:44px;
+    align-items:center;
+  }
+
+  .pipeline-steps{
+    display:flex;
+    flex-direction:column;
+    gap:22px;
+  }
+
+  .pipeline-step{
+    display:flex;
+    gap:16px;
+    align-items:flex-start;
+  }
+
+  .pipeline-dot{
+    width:32px;height:32px;
+    border-radius:50%;
+    background:var(--surface-2);
+    border:1px solid var(--border);
+    display:flex;align-items:center;justify-content:center;
+    font-family:'JetBrains Mono',monospace;
+    font-size:12px;
+    color:var(--text-dim);
+    flex-shrink:0;
+  }
+
+  .pipeline-step.active .pipeline-dot{
+    background:var(--brand);
+    border-color:var(--brand);
+    color:#fff;
+  }
+
+  .pipeline-step h4{
+    font-size:15px;
+    font-weight:600;
+    margin-bottom:4px;
+  }
+
+  .pipeline-step p{
+    font-size:13.5px;
+    color:var(--text-dim);
+  }
+
+  .insight-card{
+    background:var(--surface-2);
+    border:1px solid var(--border);
+    border-radius:14px;
+    padding:22px;
+  }
+
+  .insight-card .tag{
+    display:inline-block;
+    font-size:11px;
+    font-weight:600;
+    color:var(--brand);
+    background:var(--brand-soft);
+    padding:4px 10px;
+    border-radius:100px;
+    margin-bottom:14px;
+  }
+
+  .insight-card p{
+    font-size:14.5px;
+    color:var(--text);
+    line-height:1.6;
+    margin-bottom:16px;
+  }
+
+  .insight-actions{display:flex;gap:10px;}
+
+  .insight-actions .mini-btn{
+    font-size:12.5px;
+    padding:7px 12px;
+    border-radius:8px;
+    border:1px solid var(--border);
+    color:var(--text-dim);
+  }
+
+  /* ---------- RESULTS PLACEHOLDER ---------- */
+  .results-grid{
+    display:grid;
+    grid-template-columns:repeat(3, 1fr);
+    gap:18px;
+  }
+
+  .result-card{
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    padding:28px;
+  }
+
+  .result-card .big{
+    font-family:'JetBrains Mono',monospace;
+    font-size:32px;
+    color:var(--brand);
+    margin-bottom:8px;
+  }
+
+  .result-card p{
+    color:var(--text-dim);
+    font-size:14px;
+  }
+
+  .result-note{
+    margin-top:18px;
+    font-size:12.5px;
+    color:var(--text-faint);
+    border-left:2px solid var(--border);
+    padding-left:12px;
+  }
+
+  /* ---------- FAQ ---------- */
+  .faq-list{max-width:760px;}
+
+  .faq-item{
+    border-bottom:1px solid var(--border);
+  }
+
+  .faq-q{
+    width:100%;
+    text-align:left;
+    background:none;
+    border:none;
+    color:var(--text);
+    font-family:'Space Grotesk',sans-serif;
+    font-size:16.5px;
+    font-weight:600;
+    padding:22px 0;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    cursor:pointer;
+  }
+
+  .faq-q .plus{
+    font-family:'JetBrains Mono',monospace;
+    color:var(--text-faint);
+    transition:transform .2s ease;
+  }
+
+  .faq-item.open .faq-q .plus{transform:rotate(45deg);color:var(--brand);}
+
+  .faq-a{
+    max-height:0;
+    overflow:hidden;
+    transition:max-height .25s ease;
+    color:var(--text-dim);
+    font-size:15px;
+  }
+
+  .faq-item.open .faq-a{max-height:200px;padding-bottom:22px;}
+
+  /* ---------- FINAL CTA ---------- */
+  .final-cta{
+    text-align:center;
+    background:linear-gradient(180deg, var(--surface) 0%, var(--bg) 100%);
+    border:1px solid var(--border);
+    border-radius:24px;
+    padding:70px 40px;
+  }
+
+  .final-cta h2{
+    font-size:clamp(26px, 3.4vw, 38px);
+    margin-bottom:16px;
+  }
+
+  .final-cta p{
+    color:var(--text-dim);
+    margin-bottom:32px;
+  }
+
+  .final-cta-btns{
+    display:flex;
+    gap:14px;
+    justify-content:center;
+  }
+
+  /* ---------- FOOTER ---------- */
+  footer{
+    border-top:1px solid var(--border);
+    padding:48px 0 32px;
+  }
+
+  .footer-row{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    flex-wrap:wrap;
+    gap:16px;
+  }
+
+  .footer-links{
+    display:flex;
+    gap:24px;
+    font-size:13.5px;
+    color:var(--text-faint);
+  }
+
+  .footer-links a:hover{color:var(--text-dim);}
+
+  .footer-bottom{
+    margin-top:32px;
+    padding-top:24px;
+    border-top:1px solid var(--border);
+    font-size:12.5px;
+    color:var(--text-faint);
+    display:flex;
+    justify-content:space-between;
+    flex-wrap:wrap;
+    gap:10px;
+  }
+
+  /* ---------- RESPONSIVE ---------- */
+  @media (max-width:900px){
+    .nav-links{display:none;}
+    .hero-grid{grid-template-columns:1fr;}
+    .constellation{margin-top:20px;}
+    .module-grid{grid-template-columns:repeat(2,1fr);}
+    .pipeline{grid-template-columns:1fr;padding:28px;}
+    .results-grid{grid-template-columns:1fr;}
+  }
+
+  @media (max-width:560px){
+    .module-grid{grid-template-columns:1fr;}
+    .hero-ctas{flex-direction:column;}
+    .hero-meta{flex-wrap:wrap;row-gap:10px;}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <nav>
+      <a href="/" class="brand-lockup">
+        <span class="dot"></span>
+        <span>Growth Intelligence<br><small>by Docta Nexus</small></span>
+      </a>
+      <div class="nav-links">
+        <div class="has-dropdown" tabindex="0">
+          <a href="#soluciones">Soluciones ▾</a>
+          <div class="dropdown">
+            <a href="/soluciones/meta-ads"><span class="sw" style="background:var(--meta)"></span>Meta Ads</a>
+            <a href="/soluciones/google-ads"><span class="sw" style="background:var(--google)"></span>Google Ads</a>
+            <a href="/soluciones/analytics"><span class="sw" style="background:var(--analytics)"></span>Analytics</a>
+            <a href="/soluciones/ecommerce"><span class="sw" style="background:var(--ecommerce)"></span>eCommerce</a>
+            <a href="/soluciones/analisis-ia"><span class="sw" style="background:var(--brand)"></span>Análisis con IA</a>
+            <a href="/soluciones/creatividades"><span class="sw" style="background:var(--creative)"></span>Creatividades</a>
+          </div>
+        </div>
+        <a href="#producto">Producto</a>
+        <a href="#resultados">Resultados</a>
+        <a href="#faq">Preguntas frecuentes</a>
+      </div>
+      <a href="/login" class="btn btn-login">Login →</a>
+    </nav>
+  </div>
+</header>
+
+<section class="hero">
+  <div class="wrap">
+    <div class="hero-grid">
+      <div>
+        <span class="eyebrow">● Datos en vivo, no guardados</span>
+        <h1>Todo tu <span class="accent">growth</span>, en un solo lugar.</h1>
+        <p class="lead">Meta Ads, Google Ads, Analytics y eCommerce, conectados en un solo tablero — con un análisis de IA que te dice qué hacer, no solo qué pasó.</p>
+        <div class="hero-ctas">
+          <a href="#soluciones" class="btn btn-primary">Ver soluciones</a>
+          <a href="#contacto" class="btn btn-ghost">Solicitar acceso</a>
+        </div>
+        <div class="hero-meta">
+          <div>Fuentes conectadas <strong>6</strong></div>
+          <div>Actualización <strong>en vivo</strong></div>
+          <div>Análisis <strong>Claude + GPT</strong></div>
+        </div>
+      </div>
+
+      <div class="constellation">
+        <svg viewBox="0 0 400 400" aria-hidden="true">
+          <line class="node-line" x1="200" y1="200" x2="90" y2="100" stroke="#4C8DFF"/>
+          <line class="node-line" x1="200" y1="200" x2="310" y2="100" stroke="#F5A623"/>
+          <line class="node-line" x1="200" y1="200" x2="330" y2="230" stroke="#2DD4BF"/>
+          <line class="node-line" x1="200" y1="200" x2="250" y2="330" stroke="#FF6B5D"/>
+          <line class="node-line" x1="200" y1="200" x2="90" y2="290" stroke="#EC6BAE"/>
+
+          <circle cx="200" cy="200" r="34" fill="#7C6AEF" class="node node-pulse"/>
+          <text x="200" y="204" text-anchor="middle" class="core-label" fill="#fff">GI</text>
+
+          <circle cx="90" cy="100" r="16" fill="#4C8DFF" class="node"/>
+          <text x="90" y="76" text-anchor="middle" class="node-label">Meta Ads</text>
+
+          <circle cx="310" cy="100" r="16" fill="#F5A623" class="node"/>
+          <text x="310" y="76" text-anchor="middle" class="node-label">Google Ads</text>
+
+          <circle cx="330" cy="230" r="16" fill="#2DD4BF" class="node"/>
+          <text x="356" y="234" text-anchor="start" class="node-label">Analytics</text>
+
+          <circle cx="250" cy="330" r="16" fill="#FF6B5D" class="node"/>
+          <text x="250" y="358" text-anchor="middle" class="node-label">eCommerce</text>
+
+          <circle cx="90" cy="290" r="16" fill="#EC6BAE" class="node"/>
+          <text x="90" y="316" text-anchor="middle" class="node-label">Creatividades</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="strip">
+  <div class="wrap strip-row">
+    <div class="strip-item">Period-bar unificado <strong>Ayer · 7d · 14d · Mes · Semana</strong></div>
+    <div class="strip-item">Sincronización <strong>diaria automática</strong></div>
+    <div class="strip-item">Panel de administración <strong>multi-cliente</strong></div>
+  </div>
+</div>
+
+<section id="soluciones">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="eyebrow">Soluciones</span>
+      <h2>Una solapa por fuente. Un criterio para todas.</h2>
+      <p>Cada integración resuelve algo puntual, pero todas comparten el mismo período, el mismo criterio de actualización y el mismo motor de análisis.</p>
+    </div>
+
+    <div class="module-grid">
+
+      <a href="/soluciones/meta-ads" class="module-card" style="--card-accent:#4C8DFF">
+        <div class="module-swatch">M</div>
+        <h3>API Meta Ads</h3>
+        <p>Métricas en vivo directo desde Graph API. Sin comparaciones de halo, sin WoW — el dato de tu período elegido, tal cual está hoy.</p>
+        <span class="module-link">Ver solución →</span>
+      </a>
+
+      <a href="/soluciones/google-ads" class="module-card" style="--card-accent:#F5A623">
+        <div class="module-swatch">G</div>
+        <h3>API Google Ads</h3>
+        <p>Campañas activas, Shopping y Performance Max, con ROAS calculado y el mismo period-bar que Meta Ads.</p>
+        <span class="module-link">Ver solución →</span>
+      </a>
+
+      <a href="/soluciones/analytics" class="module-card" style="--card-accent:#2DD4BF">
+        <div class="module-swatch">A</div>
+        <h3>API Analytics (GA4)</h3>
+        <p>Adquisición por canal y funnel de eCommerce completo, con usuarios y caída de usuarios paso a paso.</p>
+        <span class="module-link">Ver solución →</span>
+      </a>
+
+      <a href="/soluciones/ecommerce" class="module-card" style="--card-accent:#FF6B5D">
+        <div class="module-swatch">E</div>
+        <h3>eCommerce</h3>
+        <p>Facturación, ticket promedio, clientes nuevos vs. recurrentes — carga mensual y semanal, con diagnóstico de IA propio.</p>
+        <span class="module-link">Ver solución →</span>
+      </a>
+
+      <a href="/soluciones/analisis-ia" class="module-card" style="--card-accent:#7C6AEF">
+        <div class="module-swatch">IA</div>
+        <h3>Análisis con IA</h3>
+        <p>Un paso separado y a demanda: Claude analiza, GPT sintetiza. Vos elegís cuándo correrlo, nunca corre solo.</p>
+        <span class="module-link">Ver solución →</span>
+      </a>
+
+      <a href="/soluciones/creatividades" class="module-card" style="--card-accent:#EC6BAE">
+        <div class="module-swatch">C</div>
+        <h3>Creatividades</h3>
+        <p>Agente Andrómeda: diagnóstico de piezas creativas con el mismo criterio experto que el resto del sistema.</p>
+        <span class="module-link">Ver solución →</span>
+      </a>
+
+    </div>
+  </div>
+</section>
+
+<section id="producto">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="eyebrow">Cómo funciona el análisis</span>
+      <h2>Las métricas primero. El diagnóstico, cuando vos lo pedís.</h2>
+      <p>Ningún análisis corre automático. Elegís el período, mirás el dato crudo, y si querés profundidad, apretás un botón.</p>
+    </div>
+
+    <div class="pipeline">
+      <div class="pipeline-steps">
+        <div class="pipeline-step active">
+          <div class="pipeline-dot">1</div>
+          <div><h4>Claude analiza</h4><p>Lee las métricas del período elegido contra tus objetivos configurados.</p></div>
+        </div>
+        <div class="pipeline-step active">
+          <div class="pipeline-dot">2</div>
+          <div><h4>GPT sintetiza</h4><p>Convierte el análisis en un diagnóstico claro y accionable.</p></div>
+        </div>
+        <div class="pipeline-step">
+          <div class="pipeline-dot">3</div>
+          <div><h4>Vos decidís</h4><p>El resultado queda a la vista — no se guarda nada sin que lo elijas.</p></div>
+        </div>
+      </div>
+
+      <div class="insight-card">
+        <span class="tag">Ejemplo de diagnóstico</span>
+        <p>"Google Ads muestra CPA un 18% por encima del objetivo esta semana, concentrado en la campaña de Shopping. El share de impresiones perdido por presupuesto subió a 22% — hay demanda que no se está capturando."</p>
+        <div class="insight-actions">
+          <span class="mini-btn">Ver campaña</span>
+          <span class="mini-btn">Ajustar objetivo</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="resultados">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="eyebrow">Resultados</span>
+      <h2>Impacto real en las cuentas que ya lo usan.</h2>
+    </div>
+
+    <div class="results-grid">
+      <div class="result-card">
+        <div class="big">—%</div>
+        <p>Reducción en tiempo de armado de reportes mensuales.</p>
+      </div>
+      <div class="result-card">
+        <div class="big">—%</div>
+        <p>Mejora en ROAS detectada tras el primer mes de uso.</p>
+      </div>
+      <div class="result-card">
+        <div class="big">—</div>
+        <p>Clientes de Docta Nexus activos en la plataforma hoy.</p>
+      </div>
+    </div>
+    <p class="result-note">Completar estos tres números con datos reales antes de publicar — dejamos la estructura lista, sin inventar cifras.</p>
+  </div>
+</section>
+
+<section id="faq">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="eyebrow">Preguntas frecuentes</span>
+      <h2>Lo que solés preguntar antes de sumar una cuenta.</h2>
+    </div>
+
+    <div class="faq-list">
+      <div class="faq-item">
+        <button class="faq-q">¿Los datos son en vivo o guardados? <span class="plus">+</span></button>
+        <div class="faq-a"><p>Meta Ads, Google Ads y Analytics resuelven cada período consultando la API directamente. Igual guardamos un histórico diario, pero solo como registro de referencia.</p></div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q">¿Cómo se agrega un cliente nuevo? <span class="plus">+</span></button>
+        <div class="faq-a"><p>Desde el panel de administración: se cargan las credenciales de Meta, Google Ads y GA4 una sola vez, sin tocar código ni hacer un deploy.</p></div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q">¿El análisis de IA se corre solo? <span class="plus">+</span></button>
+        <div class="faq-a"><p>No. Cada solapa tiene su propio botón de análisis — vos decidís cuándo correrlo y con qué filtro de período.</p></div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q">¿Puedo comparar Meta y Google entre sí? <span class="plus">+</span></button>
+        <div class="faq-a"><p>Cada canal se mide contra su propia historia y sus propios objetivos — no armamos comparaciones de halo entre canales.</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="final-cta">
+      <h2>¿Sumamos tu cuenta a la plataforma?</h2>
+      <p>Un espacio dedicado para tu operación, con las fuentes que necesites conectadas desde el día uno.</p>
+      <div class="final-cta-btns">
+        <a href="#contacto" class="btn btn-primary">Solicitar acceso</a>
+        <a href="/login" class="btn btn-ghost">Ya tengo cuenta →</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div class="footer-row">
+      <a href="/" class="brand-lockup">
+        <span class="dot"></span>
+        <span>Growth Intelligence<br><small>by Docta Nexus</small></span>
+      </a>
+      <div class="footer-links">
+        <a href="/soluciones/meta-ads">Meta Ads</a>
+        <a href="/soluciones/google-ads">Google Ads</a>
+        <a href="/soluciones/analytics">Analytics</a>
+        <a href="/soluciones/ecommerce">eCommerce</a>
+        <a href="/soluciones/analisis-ia">Análisis IA</a>
+        <a href="/soluciones/creatividades">Creatividades</a>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <span>© 2026 Docta Nexus. Todos los derechos reservados.</span>
+      <a href="https://doctanexus.com" target="_blank" rel="noopener">doctanexus.com</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+  document.querySelectorAll('.faq-item').forEach(function(item){
+    item.querySelector('.faq-q').addEventListener('click', function(){
+      var isOpen = item.classList.contains('open');
+      document.querySelectorAll('.faq-item.open').forEach(function(el){ el.classList.remove('open'); });
+      if(!isOpen){ item.classList.add('open'); }
+    });
+  });
+</script>
+
+</body>
+</html>
