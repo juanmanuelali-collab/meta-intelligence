@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Plan de Campañas — Docta Nexus</title>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,500;6..72,600&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f6f6f4;--surface:#ffffff;--ink:#15151a;--ink-soft:#54565f;--ink-faint:#93959e;
+  --line:#e3e2dc;--sans:'Inter',sans-serif;--mono:'JetBrains Mono',monospace;--serif:'Newsreader',Georgia,serif;
+  --accent:#2a78d6;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+
+#gate{position:fixed;inset:0;background:#0b0b0e;display:flex;align-items:center;justify-content:center;padding:1.5rem;z-index:50}
+.gate-card{width:100%;max-width:380px;background:#1c1c22;border:1px solid #2c2c34;border-radius:12px;padding:2.2rem 2rem;text-align:center}
+.gate-eyebrow{font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:#8f8fff;margin-bottom:.6rem}
+.gate-title{font-size:1.25rem;font-weight:600;color:#f4f3ef;margin-bottom:.4rem}
+.gate-sub{font-size:12.5px;color:#9a9aa4;margin-bottom:1.6rem;line-height:1.5}
+.gate-input{width:100%;background:#131318;border:1px solid #33333c;border-radius:8px;color:#f4f3ef;font-family:var(--mono);font-size:17px;letter-spacing:.22em;text-align:center;padding:12px;outline:none;margin-bottom:.8rem}
+.gate-btn{width:100%;background:#3d7fe0;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;padding:12px;cursor:pointer}
+.gate-btn:disabled{opacity:.6}
+.gate-err{color:#f0a5a5;font-size:12px;margin-top:.6rem;display:none}
+.gate-expiry{margin-top:1.2rem;font-size:11px;color:#6a6a76}
+
+#story{display:none;max-width:760px;margin:0 auto;padding:0 1.5rem 4rem}
+#story.on{display:block}
+
+.st-topbar{position:sticky;top:0;z-index:10;background:rgba(246,246,244,.94);backdrop-filter:blur(6px);border-bottom:1px solid var(--line);padding:.9rem 1.5rem;margin:0 -1.5rem 2rem;display:flex;justify-content:space-between;align-items:center}
+.st-topbar-name{font-weight:600;font-size:14px}
+.st-topbar-tag{font-family:var(--mono);font-size:10.5px;color:var(--ink-faint);border:1px solid var(--line);border-radius:4px;padding:2px 8px;margin-left:8px}
+
+.st-eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-faint);margin-bottom:.8rem}
+.st-headline{font-family:var(--serif);font-size:clamp(28px,5vw,38px);font-weight:600;line-height:1.15;margin-bottom:1rem}
+.st-dek{font-size:16px;color:var(--ink-soft);line-height:1.6;margin-bottom:2.2rem;max-width:620px}
+
+.st-cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:2.2rem}
+.st-card{background:var(--surface);border-radius:10px;padding:14px}
+.st-card-label{font-size:11px;color:var(--ink-soft);margin-bottom:5px}
+.st-card-val{font-family:var(--serif);font-size:22px;font-weight:500}
+
+.st-split{display:flex;align-items:center;gap:20px;background:var(--surface);border-radius:10px;padding:16px;margin-bottom:2.2rem}
+.st-split-donut{position:relative;width:96px;height:96px;flex-shrink:0}
+.st-split-legend{display:flex;flex-direction:column;gap:8px;font-size:13px}
+.st-sl-item{display:flex;align-items:center;gap:7px;color:var(--ink-soft)}
+.st-sl-dot{width:9px;height:9px;border-radius:2px;flex-shrink:0}
+
+.st-sec-title{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-faint);margin-bottom:.8rem;padding-bottom:.5rem;border-bottom:1px solid var(--line)}
+.st-narrative{font-size:15px;line-height:1.75;color:var(--ink);margin-bottom:2.4rem}
+
+.st-campaigns{display:flex;flex-direction:column;gap:10px;margin-bottom:2.4rem}
+.st-camp{background:var(--surface);border-radius:10px;padding:16px}
+.st-camp-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px;gap:10px}
+.st-camp-name{font-weight:600;font-size:14.5px}
+.st-camp-meta{font-family:var(--mono);font-size:10.5px;color:var(--ink-faint);white-space:nowrap}
+.st-camp-blurb{font-size:13.5px;color:var(--ink-soft);line-height:1.6}
+
+.st-context{background:var(--surface);border-radius:10px;padding:16px;font-size:13px;color:var(--ink-soft);line-height:1.7;margin-bottom:2rem}
+.st-context b{color:var(--ink)}
+
+.st-footer{text-align:center;font-size:11px;color:var(--ink-faint);padding-top:1.5rem;border-top:1px solid var(--line)}
+</style>
+</head>
+<body>
+
+<div id="gate">
+  <div class="gate-card">
+    <div class="gate-eyebrow">Docta Nexus — Plan de Campañas</div>
+    <div class="gate-title" id="gateBizName">Plan de campañas</div>
+    <div class="gate-sub">Ingresá el código de acceso que te compartió tu agencia.</div>
+    <input type="text" id="gateCode" class="gate-input" placeholder="000000" maxlength="6" inputmode="numeric">
+    <button class="gate-btn" id="gateBtn" onclick="unlockStory()">Ver el plan</button>
+    <div class="gate-err" id="gateErr"></div>
+    <div class="gate-expiry" id="gateExpiry"></div>
+  </div>
+</div>
+
+<div id="story">
+  <div class="st-topbar">
+    <div><span class="st-topbar-name" id="stBizName"></span><span class="st-topbar-tag" id="stPeriod"></span></div>
+  </div>
+
+  <div class="st-eyebrow">Plan de campañas</div>
+  <div class="st-headline" id="stHeadline"></div>
+  <div class="st-dek" id="stDek"></div>
+
+  <div class="st-cards" id="stCards"></div>
+  <div class="st-split" id="stSplit" style="display:none"></div>
+
+  <div class="st-sec-title">Cómo está pensado el plan</div>
+  <div class="st-narrative" id="stComposition"></div>
+
+  <div class="st-sec-title">Campañas</div>
+  <div class="st-campaigns" id="stCampaigns"></div>
+
+  <div id="stContextWrap" style="display:none">
+    <div class="st-sec-title">Contexto del mes anterior</div>
+    <div class="st-context" id="stContext"></div>
+  </div>
+
+  <div class="st-footer">Plan generado por Docta Nexus · vence el <span id="stExpiry"></span></div>
+</div>
+
+<script>
+const token = location.pathname.split('/').filter(Boolean).pop();
+function esc(s){ return (s==null?'':String(s)).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function money(v){ if(v==null) return 'N/D'; return '$'+Math.round(v).toLocaleString('es-AR'); }
+function fmtDate(iso){ if(!iso) return ''; const d = new Date(iso); return d.toLocaleDateString('es-AR',{day:'2-digit',month:'long',year:'numeric'}); }
+
+async function initGate(){
+  try{
+    const r = await fetch(`/api/plan-story/${token}/meta`);
+    const d = await r.json();
+    if(!r.ok){ gateError(d.error || 'Este plan no existe.'); return; }
+    document.getElementById('gateBizName').textContent = d.business_name ? `Plan de ${d.business_name}` : 'Plan de campañas';
+    if(d.expired){
+      gateError('Este link venció. Pedile a tu agencia que te comparta uno nuevo.');
+      document.getElementById('gateExpiry').innerHTML = '';
+      document.getElementById('gateCode').style.display = 'none';
+      document.getElementById('gateBtn').style.display = 'none';
+      return;
+    }
+    document.getElementById('gateExpiry').textContent = 'Este link expira el ' + fmtDate(d.expires_at);
+  }catch(e){
+    gateError('No pudimos cargar el plan. Probá de nuevo en unos minutos.');
+  }
+}
+function gateError(msg){
+  const el = document.getElementById('gateErr');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+initGate();
+
+async function unlockStory(){
+  const code = document.getElementById('gateCode').value.trim();
+  const btn = document.getElementById('gateBtn');
+  if(code.length < 4){ gateError('Ingresá el código completo.'); return; }
+  btn.disabled = true; btn.textContent = 'Verificando…';
+  try{
+    const r = await fetch(`/api/plan-story/${token}/unlock`, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ code })
+    });
+    const d = await r.json();
+    if(!r.ok){ gateError(d.error || 'Código incorrecto.'); btn.disabled=false; btn.textContent='Ver el plan'; return; }
+    render(d);
+    document.getElementById('gate').style.display = 'none';
+    document.getElementById('story').classList.add('on');
+  }catch(e){
+    gateError('No pudimos verificar el código. Probá de nuevo.');
+    btn.disabled = false; btn.textContent = 'Ver el plan';
+  }
+}
+document.getElementById('gateCode').addEventListener('keydown', e => { if(e.key==='Enter') unlockStory(); });
+
+function render(d){
+  document.documentElement.style.setProperty('--accent', d.color_primary || '#2a78d6');
+  document.getElementById('stBizName').textContent = d.business_name || '';
+  document.getElementById('stPeriod').textContent = d.period_label || '';
+  document.getElementById('stHeadline').textContent = d.headline || `Plan de ${d.period_label || ''}`;
+  document.getElementById('stDek').textContent = d.dek || '';
+  document.getElementById('stExpiry').textContent = fmtDate(d.expires_at);
+
+  const items = d.items || [];
+  document.getElementById('stCards').innerHTML = `
+    <div class="st-card"><div class="st-card-label">Presupuesto total</div><div class="st-card-val">${money(d.total_budget)}</div></div>
+    <div class="st-card"><div class="st-card-label">Campañas</div><div class="st-card-val">${items.length}</div></div>
+    <div class="st-card"><div class="st-card-label">Objetivo del período</div><div class="st-card-val" style="font-size:16px">${esc(d.business_objective || d.primary_kpi || 'N/D')}</div></div>
+  `;
+
+  const split = d.channel_split || {};
+  const metaVal = split.meta || 0, googleVal = split.google_ads || 0;
+  const total = metaVal + googleVal;
+  if(total > 0){
+    const metaPct = Math.round(metaVal/total*100);
+    document.getElementById('stSplit').style.display = 'flex';
+    document.getElementById('stSplit').innerHTML = `
+      <div class="st-split-donut"><canvas id="stDonut"></canvas></div>
+      <div class="st-split-legend">
+        <div class="st-sl-item"><span class="st-sl-dot" style="background:#2a78d6"></span>Meta Ads · ${metaPct}%<div style="font-family:var(--mono);font-size:12px;color:var(--ink);margin-left:16px">${money(metaVal)}</div></div>
+        <div class="st-sl-item"><span class="st-sl-dot" style="background:#eb6834"></span>Google Ads · ${100-metaPct}%<div style="font-family:var(--mono);font-size:12px;color:var(--ink);margin-left:16px">${money(googleVal)}</div></div>
+      </div>`;
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js';
+    s.onload = () => {
+      new Chart(document.getElementById('stDonut'), {
+        type: 'doughnut',
+        data: { datasets: [{ data: [metaVal, googleVal], backgroundColor: ['#2a78d6', '#eb6834'], borderWidth: 2, borderColor: '#fff' }] },
+        options: { responsive: true, maintainAspectRatio: false, cutout: '64%', plugins: { legend: { display: false }, tooltip: { enabled: false } } }
+      });
+    };
+    document.body.appendChild(s);
+  }
+
+  document.getElementById('stComposition').textContent = d.composition_narrative || '';
+
+  const blurbMap = {};
+  (d.campaign_blurbs || []).forEach(b => { blurbMap[b.campaign_name] = b.blurb; });
+  document.getElementById('stCampaigns').innerHTML = items.map(it => `
+    <div class="st-camp">
+      <div class="st-camp-head">
+        <span class="st-camp-name">${esc(it.campaign_name)}</span>
+        <span class="st-camp-meta">${esc(it.channel==='meta'?'Meta Ads':it.channel==='google_ads'?'Google Ads':it.channel||'')} · ${money(it.budget_mensual)}</span>
+      </div>
+      ${blurbMap[it.campaign_name] ? `<div class="st-camp-blurb">${esc(blurbMap[it.campaign_name])}</div>` : ''}
+    </div>`).join('');
+
+  if(d.prev_context){
+    const pc = d.prev_context;
+    document.getElementById('stContextWrap').style.display = 'block';
+    document.getElementById('stContext').innerHTML = `En <b>${esc(pc.period_label)}</b>, las campañas con datos disponibles (${pc.campaigns_with_data}) tuvieron una inversión combinada de <b>${money(pc.spend)}</b>, generando <b>${Math.round(pc.conversions)}</b> conversiones y <b>${money(pc.revenue)}</b> en ingresos.`;
+  }
+}
+</script>
+</body>
+</html>
