@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Informe — Docta Nexus</title>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,500;6..72,600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{ --bg:#f6f6f4;--surface:#ffffff;--ink:#15151a;--ink-soft:#54565f;--ink-faint:#93959e;--line:#e3e2dc;--sans:'Inter',sans-serif;--serif:'Newsreader',Georgia,serif;--band:#132a5e; }
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased}
+#gate{position:fixed;inset:0;background:#0b0b0e;display:flex;align-items:center;justify-content:center;padding:1.5rem;z-index:50}
+.gate-card{width:100%;max-width:400px;background:#1c1c22;border:1px solid #2c2c34;border-radius:14px;padding:2.4rem 2rem;text-align:center}
+.gate-eyebrow{font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:#8f8fff;margin-bottom:.7rem}
+.gate-title{font-size:1.4rem;font-weight:600;color:#f4f3ef;margin-bottom:.5rem}
+.gate-sub{font-size:14px;color:#9a9aa4;margin-bottom:1.8rem}
+.gate-input{width:100%;background:#131318;border:1px solid #33333c;border-radius:9px;color:#f4f3ef;font-size:19px;letter-spacing:.22em;text-align:center;padding:14px;outline:none;margin-bottom:.9rem}
+.gate-btn{width:100%;background:#3d7fe0;color:#fff;border:none;border-radius:9px;font-size:16px;font-weight:600;padding:14px;cursor:pointer}
+.gate-err{color:#f0a5a5;font-size:13px;margin-top:.7rem;display:none}
+#report{display:none;max-width:760px;margin:0 auto;padding:0 1.1rem 4rem}
+#report.on{display:block}
+.hdr{padding:1.6rem 0;text-align:center;border-bottom:1px solid var(--line);margin-bottom:1.8rem}
+.hdr-title{font-family:var(--serif);font-size:28px;font-weight:600}
+.hdr-sub{font-size:15px;color:var(--ink-soft);margin-top:6px}
+.summary-card{background:var(--surface);border-radius:14px;padding:22px;margin-bottom:1.6rem;font-size:16px;line-height:1.7}
+.sec-title{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-faint);margin:2rem 0 .8rem;border-bottom:1px solid var(--line);padding-bottom:.5rem}
+.section-card{background:var(--surface);border-radius:12px;padding:18px;margin-bottom:12px;white-space:pre-wrap;font-size:14.5px;line-height:1.7}
+.section-card b{font-family:var(--serif);font-size:15px}
+.rec-list{background:var(--surface);border-radius:12px;padding:18px;white-space:pre-wrap;font-size:14.5px;line-height:1.8}
+</style>
+</head>
+<body>
+
+<div id="gate">
+  <div class="gate-card">
+    <div class="gate-eyebrow">Docta Nexus</div>
+    <div class="gate-title" id="gateBizName">Informe</div>
+    <div class="gate-sub">Ingresá el código de acceso que te compartió tu agencia.</div>
+    <input type="text" id="gateCode" class="gate-input" placeholder="000000" maxlength="6" inputmode="numeric">
+    <button class="gate-btn" id="gateBtn" onclick="unlockReport()">Ver el informe</button>
+    <div class="gate-err" id="gateErr"></div>
+  </div>
+</div>
+
+<div id="report">
+  <div class="hdr">
+    <div class="hdr-title" id="hdrTitle">Informe de resultados</div>
+    <div class="hdr-sub" id="hdrSub"></div>
+  </div>
+  <div class="summary-card" id="execSummary"></div>
+  <div class="sec-title">Secciones</div>
+  <div id="sectionsBody"></div>
+  <div class="sec-title">Recomendaciones</div>
+  <div class="rec-list" id="recsBody"></div>
+  <div class="sec-title">Próximos 30 días</div>
+  <div class="rec-list" id="nextBody"></div>
+</div>
+
+<script>
+const token = location.pathname.split('/').filter(Boolean).pop();
+function esc(s){ return (s==null?'':String(s)).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+async function initGate(){
+  try{
+    const r = await fetch(`/api/nexus-report/${token}/meta`);
+    const d = await r.json();
+    if(!r.ok){ gateError(d.error || 'Este informe no existe.'); return; }
+    document.getElementById('gateBizName').textContent = d.business_name ? `Informe de ${d.business_name}` : 'Informe';
+    if(d.expired){ gateError('Este link venció. Pedile a tu agencia que te comparta uno nuevo.'); document.getElementById('gateCode').style.display='none'; document.getElementById('gateBtn').style.display='none'; }
+  }catch(e){ gateError('No pudimos cargar el informe.'); }
+}
+function gateError(msg){ const el = document.getElementById('gateErr'); el.textContent = msg; el.style.display = 'block'; }
+initGate();
+
+async function unlockReport(){
+  const code = document.getElementById('gateCode').value.trim();
+  const btn = document.getElementById('gateBtn');
+  if(code.length < 4){ gateError('Ingresá el código completo.'); return; }
+  btn.disabled = true; btn.textContent = 'Verificando…';
+  try{
+    const r = await fetch(`/api/nexus-report/${token}/unlock`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ code }) });
+    const d = await r.json();
+    if(!r.ok){ gateError(d.error || 'Código incorrecto.'); btn.disabled=false; btn.textContent='Ver el informe'; return; }
+    render(d);
+    document.getElementById('gate').style.display = 'none';
+    document.getElementById('report').classList.add('on');
+  }catch(e){ gateError('No pudimos verificar el código.'); btn.disabled=false; btn.textContent='Ver el informe'; }
+}
+document.getElementById('gateCode').addEventListener('keydown', e => { if(e.key==='Enter') unlockReport(); });
+
+function render(d){
+  if(d.color_primary) document.documentElement.style.setProperty('--band', d.color_primary);
+  document.getElementById('hdrSub').textContent = `${d.business_name||''} · ${d.period_label||''}`;
+  document.getElementById('execSummary').textContent = d.executive_summary || '';
+  document.getElementById('sectionsBody').innerHTML = (d.sections||[]).map(s => `<div class="section-card"><b>${esc(s.title)}</b>\n\n${esc(s.text)}</div>`).join('');
+  document.getElementById('recsBody').textContent = d.recommendations || '';
+  document.getElementById('nextBody').textContent = d.next_30_days || '';
+}
+</script>
+</body>
+</html>
